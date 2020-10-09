@@ -70,6 +70,8 @@ type CLIConf struct {
 	RemoteCommand []string
 	// DesiredRoles indicates one or more roles which should be requested.
 	DesiredRoles string
+	// RequestReason indicates the reason for an access request.
+	RequestReason string
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
 	// Proxy keeps the hostname:port of the SSH proxy to use
@@ -301,6 +303,7 @@ func Run(args []string) {
 		identityfile.FormatKubernetes,
 	)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
+	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	// TODO(awly): unhide this flag in 5.0, after 'tsh kube ...' commands are
@@ -770,6 +773,7 @@ func executeAccessRequest(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+	req.SetRequestReason(cf.RequestReason)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
 	if err := getRequestApproval(cf, tc, req); err != nil {
 		utils.FatalError(err)
@@ -1461,7 +1465,11 @@ Loop:
 					continue Loop
 				}
 				if !r.GetState().IsApproved() {
-					return trace.Errorf("request %s has been set to %s", r.GetName(), r.GetState().String())
+					msg := fmt.Sprintf("request %s has been set to %s", r.GetName(), r.GetState().String())
+					if reason := r.GetResolveReason(); reason != "" {
+						msg = fmt.Sprintf("%s, reason=%q", msg, reason)
+					}
+					return trace.Errorf(msg)
 				}
 				return nil
 			case backend.OpDelete:
