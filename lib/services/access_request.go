@@ -324,6 +324,7 @@ func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRo
 		return trace.Wrap(err)
 	}
 
+	var requireReason bool
 	var matcher requestRoleMatcher
 
 	for _, roleName := range user.GetRoles() {
@@ -334,6 +335,13 @@ func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRo
 		if err := matcher.push(role); err != nil {
 			return trace.Wrap(err)
 		}
+		if role.GetOptions().RequireRequestReason {
+			requireReason = true
+		}
+	}
+
+	if requireReason && req.GetRequestReason() == "" {
+		return trace.BadParameter("request reason must be specified")
 	}
 
 	if r := req.GetRoles(); len(r) == 1 && r[0] == "*" {

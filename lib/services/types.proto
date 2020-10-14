@@ -728,6 +728,15 @@ message RoleOptions {
     // MaxSessions defines the maximum number of
     // concurrent sessions per connection.
     int64 MaxSessions = 10 [ (gogoproto.jsontag) = "max_sessions,omitempty" ];
+
+    // AutoRequestAccess is a UX hint indicating that the role is
+    // too restrictive to be useful without first performing an
+    // access request to escalate privilege.
+    bool AutoRequestAccess = 11 [ (gogoproto.jsontag) = "auto_request_access,omitempty" ];
+
+    // RequireRequestReason causes access requests to be rejected if they
+    // do not include a RequestReason field.
+    bool RequireRequestReason = 12 [ (gogoproto.jsontag) = "require_request_reason,omitempty" ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
