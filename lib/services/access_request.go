@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
 
@@ -190,6 +191,8 @@ type AccessRequest interface {
 	GetUser() string
 	// GetRoles gets the roles being requested by the user
 	GetRoles() []string
+	// SetRoles overrides the roles being requested by the user
+	SetRoles([]string)
 	// GetState gets the current state of the request
 	GetState() RequestState
 	// SetState sets the approval state of the request
@@ -273,50 +276,94 @@ func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
 type UserAndRoleGetter interface {
 	UserGetter
 	RoleGetter
+	GetRoles() ([]Role, error)
 }
 
-func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest) error {
+type requestRoleMatcher struct {
+	Allow []parse.Matcher
+	Deny  []parse.Matcher
+}
+
+func (m *requestRoleMatcher) push(role Role) error {
+	for _, d := range role.GetAccessRequestConditions(Deny).Roles {
+		md, err := parse.NewMatcher(d)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		m.Deny = append(m.Deny, md)
+	}
+
+	for _, a := range role.GetAccessRequestConditions(Allow).Roles {
+		ma, err := parse.NewMatcher(a)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		m.Allow = append(m.Allow, ma)
+	}
+
+	return nil
+}
+
+func (m *requestRoleMatcher) CanRequestRole(name string) bool {
+	for _, deny := range m.Deny {
+		if deny.Match(name) {
+			return false
+		}
+	}
+	for _, allow := range m.Allow {
+		if allow.Match(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRoles bool) error {
 	user, err := getter.GetUser(req.GetUser(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	type rstate struct {
-		allowed bool
-		denied  bool
-	}
-	roleStates := make(map[string]rstate, len(req.GetRoles()))
-	for _, r := range req.GetRoles() {
-		roleStates[r] = rstate{false, false}
-	}
+
+	var matcher requestRoleMatcher
+
 	for _, roleName := range user.GetRoles() {
 		role, err := getter.GetRole(roleName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	Allow:
-		for _, r := range role.GetAccessRequestConditions(Allow).Roles {
-			s, ok := roleStates[r]
-			if !ok {
-				continue Allow
-			}
-			s.allowed = true
-			roleStates[r] = s
-		}
-	Deny:
-		for _, r := range role.GetAccessRequestConditions(Deny).Roles {
-			s, ok := roleStates[r]
-			if !ok {
-				continue Deny
-			}
-			s.denied = true
-			roleStates[r] = s
+		if err := matcher.push(role); err != nil {
+			return trace.Wrap(err)
 		}
 	}
-	for roleName, roleState := range roleStates {
-		if roleState.denied || !roleState.allowed {
+
+	if r := req.GetRoles(); len(r) == 1 && r[0] == "*" {
+		if !expandRoles {
+			return trace.BadParameter("unexpected wildcard access request")
+		}
+		allRoles, err := getter.GetRoles()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		held := make(map[string]bool, len(user.GetRoles()))
+		for _, roleName := range user.GetRoles() {
+			held[roleName] = true
+		}
+		var expanded []string
+		for _, role := range allRoles {
+			if n := role.GetName(); !held[n] && matcher.CanRequestRole(n) {
+				expanded = append(expanded, n)
+			}
+		}
+		req.SetRoles(expanded)
+	}
+
+	for _, roleName := range req.GetRoles() {
+		if !matcher.CanRequestRole(roleName) {
 			return trace.BadParameter("user %q cannot request role %q", req.GetUser(), roleName)
 		}
 	}
+
 	return nil
 }
 
@@ -326,6 +373,10 @@ func (r *AccessRequestV3) GetUser() string {
 
 func (r *AccessRequestV3) GetRoles() []string {
 	return r.Spec.Roles
+}
+
+func (r *AccessRequestV3) SetRoles(roles []string) {
+	r.Spec.Roles = roles
 }
 
 func (r *AccessRequestV3) GetState() RequestState {

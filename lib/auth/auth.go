@@ -1492,7 +1492,7 @@ func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := services.ValidateAccessRequest(a, req); err != nil {
+	if err := services.ValidateAccessRequest(a, req, true); err != nil {
 		return trace.Wrap(err)
 	}
 	ttl, err := a.calculateMaxAccessTTL(req)
