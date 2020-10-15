@@ -88,6 +88,9 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		}
 		req.SetResolveReason(params.Reason)
 		req.SetResolveAttrs(params.Attrs)
+		if len(params.Roles) > 0 {
+			req.SetRoles(params.Roles)
+		}
 
 		// approved requests should have a resource expiry which matches
 		// the underlying access expiry.

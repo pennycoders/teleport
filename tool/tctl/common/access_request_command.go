@@ -39,11 +39,12 @@ type AccessRequestCommand struct {
 	config *service.Config
 	reqIDs string
 
-	user      string
-	roles     string
-	delegator string
-	reason    string
-	attrs     string
+	user         string
+	roles        string
+	delegator    string
+	reason       string
+	attrs        string
+	roleOverride string
 	// format is the output format, e.g. text or json
 	format string
 
@@ -67,6 +68,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 	c.requestApprove.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestApprove.Flag("attrs", "Resolution attributes <key>=<val>[,...]").StringVar(&c.attrs)
+	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roleOverride)
 
 	c.requestDeny = requests.Command("deny", "Deny pending access request")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -149,6 +151,7 @@ func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 			State:     services.RequestState_APPROVED,
 			Reason:    c.reason,
 			Attrs:     attrs,
+			Roles:     strings.Split(c.roleOverride, ","),
 		}); err != nil {
 			return trace.Wrap(err)
 		}

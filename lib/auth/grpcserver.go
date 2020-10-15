@@ -390,6 +390,7 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 		State:     req.State,
 		Reason:    req.Reason,
 		Attrs:     req.Attrs,
+		Roles:     req.Roles,
 	}); err != nil {
 		return nil, trail.ToGRPC(err)
 	}

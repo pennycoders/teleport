@@ -2803,6 +2803,7 @@ func (c *Client) SetAccessRequestState(ctx context.Context, params services.Acce
 		State:  params.State,
 		Reason: params.Reason,
 		Attrs:  params.Attrs,
+		Roles:  params.Roles,
 	}
 	if d := getDelegator(ctx); d != "" {
 		setter.Delegator = d

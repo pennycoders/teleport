@@ -146,6 +146,7 @@ type AccessRequestUpdate struct {
 	State     RequestState
 	Reason    string
 	Attrs     map[string]string
+	Roles     []string
 }
 
 func (u *AccessRequestUpdate) Check() error {
@@ -154,6 +155,9 @@ func (u *AccessRequestUpdate) Check() error {
 	}
 	if u.State.IsNone() {
 		return trace.BadParameter("missing request state")
+	}
+	if len(u.Roles) > 0 && !u.State.IsApproved() {
+		return trace.BadParameter("cannot override roles when setting state: %s", u.State)
 	}
 	return nil
 }
@@ -368,7 +372,7 @@ func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRo
 
 	for _, roleName := range req.GetRoles() {
 		if !matcher.CanRequestRole(roleName) {
-			return trace.BadParameter("user %q cannot request role %q", req.GetUser(), roleName)
+			return trace.BadParameter("user %q cannot request/assume role %q", req.GetUser(), roleName)
 		}
 	}
 
