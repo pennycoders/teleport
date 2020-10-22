@@ -30,6 +30,11 @@ type access struct {
 	Delete bool `json:"remove"`
 }
 
+type accountAccess struct {
+	RequireReason   bool `json:"requireReason"`
+	RequireApproval bool `json:"requireApproval"`
+}
+
 type userACL struct {
 	// Sessions defines access to recorded sessions
 	Sessions access `json:"sessions"`
@@ -47,6 +52,8 @@ type userACL struct {
 	Tokens access `json:"tokens"`
 	// Nodes defines access to nodes.
 	Nodes access `json:"nodes"`
+	// Account determines if user needs to request for access to account.
+	Account accountAccess `json:"account"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -113,6 +120,31 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 	}
 }
 
+func getAccountAccess(roleset services.RoleSet) accountAccess {
+	requireReason := false
+	requireApproval := false
+
+	for _, role := range roleset {
+		r := role.GetOptions()
+		if r.RequireRequestReason {
+			requireReason = true
+		}
+
+		if r.AutoRequestAccess {
+			requireApproval = true
+		}
+
+		if requireReason && requireApproval {
+			break
+		}
+	}
+
+	return accountAccess{
+		RequireReason:   requireReason,
+		RequireApproval: requireApproval,
+	}
+}
+
 // NewUserContext returns user context
 func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContext, error) {
 	ctx := &services.Context{User: user}
@@ -125,6 +157,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	logins := getLogins(userRoles)
+	accountAccess := getAccountAccess(userRoles)
 
 	acl := userACL{
 		AuthConnectors:  authConnectors,
@@ -136,6 +169,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 		Users:           userAccess,
 		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,
+		Account:         accountAccess,
 	}
 
 	// local user
