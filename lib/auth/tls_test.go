@@ -1304,7 +1304,7 @@ func (s *TLSSuite) TestWebSessions(c *check.C) {
 	_, err = web.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	new, err := web.ExtendWebSession(user, ws.GetName())
+	new, err := web.ExtendWebSession(user, ws.GetName(), "")
 	c.Assert(err, check.IsNil)
 	c.Assert(new, check.NotNil)
 
@@ -1318,7 +1318,7 @@ func (s *TLSSuite) TestWebSessions(c *check.C) {
 	_, err = web.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
-	_, err = web.ExtendWebSession(user, ws.GetName())
+	_, err = web.ExtendWebSession(user, ws.GetName(), "")
 	c.Assert(err, check.NotNil)
 }
 
