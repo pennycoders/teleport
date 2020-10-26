@@ -2327,8 +2327,7 @@ const RoleSpecV3SchemaTemplate = `{
         },
         "max_connections": { "type": "number" },
         "max_sessions": {"type": "number"},
-		"auto_request_access": { "type": "boolean" },
-		"require_request_reason" : { "type": "boolean" }
+		"request_access": { "type": "string" }
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },

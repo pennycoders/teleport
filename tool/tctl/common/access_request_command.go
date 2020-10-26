@@ -39,12 +39,11 @@ type AccessRequestCommand struct {
 	config *service.Config
 	reqIDs string
 
-	user         string
-	roles        string
-	delegator    string
-	reason       string
-	attrs        string
-	roleOverride string
+	user      string
+	roles     string
+	delegator string
+	reason    string
+	attrs     string
 	// format is the output format, e.g. text or json
 	format string
 
@@ -68,7 +67,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 	c.requestApprove.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestApprove.Flag("attrs", "Resolution attributes <key>=<val>[,...]").StringVar(&c.attrs)
-	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roleOverride)
+	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roles)
 
 	c.requestDeny = requests.Command("deny", "Deny pending access request")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -136,6 +135,17 @@ func (c *AccessRequestCommand) splitAttrs() (map[string]string, error) {
 	return attrs, nil
 }
 
+func (c *AccessRequestCommand) splitRoles() []string {
+	var roles []string
+	for _, s := range strings.Split(c.roles, ",") {
+		if s == "" {
+			continue
+		}
+		roles = append(roles, s)
+	}
+	return roles
+}
+
 func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 	ctx := context.TODO()
 	if c.delegator != "" {
@@ -151,7 +161,7 @@ func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 			State:     services.RequestState_APPROVED,
 			Reason:    c.reason,
 			Attrs:     attrs,
-			Roles:     strings.Split(c.roleOverride, ","),
+			Roles:     c.splitRoles(),
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -182,8 +192,7 @@ func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
 }
 
 func (c *AccessRequestCommand) Create(client auth.ClientI) error {
-	roles := strings.Split(c.roles, ",")
-	req, err := services.NewAccessRequest(c.user, roles...)
+	req, err := services.NewAccessRequest(c.user, c.splitRoles()...)
 	if err != nil {
 		return trace.Wrap(err)
 	}

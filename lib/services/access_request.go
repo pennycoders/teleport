@@ -30,6 +30,12 @@ import (
 	"github.com/pborman/uuid"
 )
 
+const (
+	RequestStrategyOptional = "optional"
+	RequestStrategyReason   = "reason"
+	RequestStrategyAlways   = "always"
+)
+
 // RequestIDs is a collection of IDs for privilege escalation requests.
 type RequestIDs struct {
 	AccessRequests []string `json:"access_requests,omitempty"`
@@ -339,7 +345,7 @@ func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRo
 		if err := matcher.push(role); err != nil {
 			return trace.Wrap(err)
 		}
-		if role.GetOptions().RequireRequestReason {
+		if role.GetOptions().RequestAccess == RequestStrategyReason {
 			requireReason = true
 		}
 	}
@@ -479,6 +485,14 @@ func (r *AccessRequestV3) Check() error {
 	}
 	if len(r.GetRoles()) < 1 {
 		return trace.BadParameter("access request does not specify any roles")
+	}
+	if r.GetState().IsPending() {
+		if r.GetResolveReason() != "" {
+			return trace.BadParameter("pending requests cannot include resolve reason")
+		}
+		if len(r.GetResolveAttrs()) != 0 {
+			return trace.BadParameter("pending requests cannot include resolve attrs")
+		}
 	}
 	return nil
 }

@@ -492,7 +492,10 @@ func onLogin(cf *CLIConf) {
 		// but desired roles are specified, treat this as a privilege escalation
 		// request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
-			executeAccessRequest(cf)
+			if err := executeAccessRequest(cf); err != nil {
+				utils.FatalError(err)
+			}
+			onStatus(cf)
 			return
 		// otherwise just passthrough to standard login
 		default:
@@ -505,12 +508,13 @@ func onLogin(cf *CLIConf) {
 
 	// -i flag specified? save the retreived cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
-	activateKey := !makeIdentityFile
 
-	key, err = tc.Login(cf.Context, activateKey)
+	key, err = tc.Login(cf.Context)
 	if err != nil {
 		utils.FatalError(err)
 	}
+
+	// TODO: perform auto-requests here; indipendent of normal auto-request logic
 
 	if makeIdentityFile {
 		if err := setupNoninteractiveClient(tc, key); err != nil {
@@ -531,6 +535,8 @@ func onLogin(cf *CLIConf) {
 		}
 		fmt.Printf("\nThe certificate has been written to %s\n", strings.Join(filesWritten, ","))
 		return
+	} else {
+		tc.ActivateKey(cf.Context, key)
 	}
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
@@ -545,17 +551,50 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
+	if cf.DesiredRoles == "" {
+		var reason, always bool
+		roleNames, err := key.CertRoles()
+		if err != nil {
+			tc.Logout()
+			utils.FatalError(err)
+		}
+		for _, roleName := range roleNames {
+			role, err := tc.GetRole(cf.Context, roleName)
+			if err != nil {
+				tc.Logout()
+				utils.FatalError(err)
+			}
+			switch role.GetOptions().RequestAccess {
+			case services.RequestStrategyReason:
+				reason, always = true, true
+			case services.RequestStrategyAlways:
+				always = true
+				break
+			}
+		}
+		if reason && cf.RequestReason == "" {
+			tc.Logout()
+			utils.FatalError(trace.BadParameter("--request-reason must be specified"))
+		}
+		if always {
+			cf.DesiredRoles = "*"
+		}
+	}
+
+	if cf.DesiredRoles != "" {
+		fmt.Println("") // visually separate access request output
+		if err := executeAccessRequest(cf); err != nil {
+			tc.Logout()
+			utils.FatalError(err)
+		}
+	}
+
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
 	// advertised settings are picked up.
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
-	if cf.DesiredRoles != "" {
-		fmt.Println("") // visually separate onRequestExecute output
-		executeAccessRequest(cf)
-	} else {
-		onStatus(cf)
-	}
+	onStatus(cf)
 }
 
 // setupNoninteractiveClient sets up existing client to use
@@ -757,32 +796,32 @@ func onListNodes(cf *CLIConf) {
 
 }
 
-func executeAccessRequest(cf *CLIConf) {
+func executeAccessRequest(cf *CLIConf) error {
 	if cf.DesiredRoles == "" {
-		utils.FatalError(trace.BadParameter("one or more roles must be specified"))
+		return trace.BadParameter("one or more roles must be specified")
 	}
 	roles := strings.Split(cf.DesiredRoles, ",")
 	tc, err := makeClient(cf, true)
 	if err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
 	if cf.Username == "" {
 		cf.Username = tc.Username
 	}
 	req, err := services.NewAccessRequest(cf.Username, roles...)
 	if err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
 	req.SetRequestReason(cf.RequestReason)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
 	if err := getRequestApproval(cf, tc, req); err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
 	fmt.Fprintf(os.Stderr, "Approval received, getting updated certificates...\n\n")
 	if err := reissueWithRequests(cf, tc, req.GetName()); err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
-	onStatus(cf)
+	return nil
 }
 
 func printNodes(nodes []services.Server, format string, verbose bool) error {
@@ -1445,7 +1484,7 @@ func getRequestApproval(cf *CLIConf, tc *client.TeleportClient, req services.Acc
 	}
 	defer watcher.Close()
 	if err := tc.CreateAccessRequest(cf.Context, req); err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
 Loop:
 	for {
@@ -1482,7 +1521,7 @@ Loop:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-watcher.Done():
-			utils.FatalError(watcher.Error())
+			return trace.Wrap(watcher.Error())
 		}
 	}
 }
