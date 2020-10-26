@@ -771,6 +771,24 @@ message RoleConditions {
 message AccessRequestConditions {
     // Roles is the name of roles which will match the request rule.
     repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
+
+    // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
+    repeated AccessRequestClaimMapping ClaimsToRoles = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
+}
+
+// AccessRequestClaimMapping is a variant of the trait mapping pattern,
+// used to propagate requestable roles from external identity providers.
+message AccessRequestClaimMapping {
+    // Claim is the name of the trait to be matched against.
+    string Claim = 1 [ (gogoproto.jsontag) = "claim,omitempty" ];
+
+    // Value is matches a trait value.
+    string Value = 2 [ (gogoproto.jsontag) = "value,omitempty" ];
+
+    // Roles are the roles being mapped to.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    ;
 }
 
 // Rule represents allow or deny rule that is executed to check

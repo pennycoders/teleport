@@ -283,6 +283,18 @@ func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
 	return &req, nil
 }
 
+func (c AccessRequestConditions) GetTraitMappings() TraitMappingSet {
+	tm := make([]TraitMapping, 0, len(c.ClaimsToRoles))
+	for _, mapping := range c.ClaimsToRoles {
+		tm = append(tm, TraitMapping{
+			Trait: mapping.Claim,
+			Value: mapping.Value,
+			Roles: mapping.Roles,
+		})
+	}
+	return TraitMappingSet(tm)
+}
+
 type UserAndRoleGetter interface {
 	UserGetter
 	RoleGetter
@@ -290,8 +302,15 @@ type UserAndRoleGetter interface {
 }
 
 type requestRoleMatcher struct {
-	Allow []parse.Matcher
-	Deny  []parse.Matcher
+	traits map[string][]string
+	Allow  []parse.Matcher
+	Deny   []parse.Matcher
+}
+
+func newRequestRoleMatcher(traits map[string][]string) requestRoleMatcher {
+	return requestRoleMatcher{
+		traits: traits,
+	}
 }
 
 func (m *requestRoleMatcher) push(role Role) error {
@@ -303,7 +322,23 @@ func (m *requestRoleMatcher) push(role Role) error {
 		m.Deny = append(m.Deny, md)
 	}
 
+	for _, d := range role.GetAccessRequestConditions(Deny).GetTraitMappings().TraitsToRoles(m.traits) {
+		md, err := parse.NewMatcher(d)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		m.Deny = append(m.Deny, md)
+	}
+
 	for _, a := range role.GetAccessRequestConditions(Allow).Roles {
+		ma, err := parse.NewMatcher(a)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		m.Allow = append(m.Allow, ma)
+	}
+
+	for _, a := range role.GetAccessRequestConditions(Allow).GetTraitMappings().TraitsToRoles(m.traits) {
 		ma, err := parse.NewMatcher(a)
 		if err != nil {
 			return trace.Wrap(err)
@@ -335,7 +370,7 @@ func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRo
 	}
 
 	var requireReason bool
-	var matcher requestRoleMatcher
+	matcher := newRequestRoleMatcher(user.GetTraits())
 
 	for _, roleName := range user.GetRoles() {
 		role, err := getter.GetRole(roleName)

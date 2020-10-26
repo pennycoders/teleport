@@ -2365,7 +2365,21 @@ const RoleSpecV3SchemaDefinitions = `
 		  "roles": {
 		    "type": "array",
 			"items": { "type": "string" }
-		  }
+		  },
+          "claims_to_roles": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "claim": {"type": "string"},
+              "value": {"type": "string"},
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
 		}
 	  },
       "rules": {
