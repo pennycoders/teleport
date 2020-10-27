@@ -514,7 +514,8 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	// TODO: perform auto-requests here; indipendent of normal auto-request logic
+	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
+	// access requests to be applied to identity files.
 
 	if makeIdentityFile {
 		if err := setupNoninteractiveClient(tc, key); err != nil {

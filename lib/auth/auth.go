@@ -1530,6 +1530,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 		Roles:        req.GetRoles(),
 		RequestID:    req.GetName(),
 		RequestState: req.GetState().String(),
+		Reason:       req.GetRequestReason(),
 	})
 	return trace.Wrap(err)
 }
@@ -1548,10 +1549,19 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		},
 		RequestID:    params.RequestID,
 		RequestState: params.State.String(),
-		// TODO(fspmarshall): Log reason and attributes
+		Reason:       params.Reason,
 	}
 	if delegator := getDelegator(ctx); delegator != "" {
 		event.Delegator = delegator
+	}
+
+	if len(params.Attrs) > 0 {
+		attrs, err := events.EncodeMapStrings(params.Attrs)
+		if err != nil {
+			log.WithError(err).Debugf("Failed to encode access request attrs.")
+		} else {
+			event.Attrs = attrs
+		}
 	}
 	err := a.emitter.EmitAuditEvent(a.closeCtx, event)
 	if err != nil {

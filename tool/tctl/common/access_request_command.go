@@ -113,8 +113,8 @@ func (c *AccessRequestCommand) List(client auth.ClientI) error {
 	return nil
 }
 
-func (c *AccessRequestCommand) splitAttrs() (map[string]string, error) {
-	attrs := make(map[string]string)
+func (c *AccessRequestCommand) splitAttrs() (map[string][]string, error) {
+	attrs := make(map[string][]string)
 	for _, s := range strings.Split(c.attrs, ",") {
 		if s == "" {
 			continue
@@ -130,7 +130,9 @@ func (c *AccessRequestCommand) splitAttrs() (map[string]string, error) {
 		if val == "" {
 			return nil, trace.BadParameter("empty sttr val")
 		}
-		attrs[key] = val
+		vals := attrs[key]
+		vals = append(vals, val)
+		attrs[key] = vals
 	}
 	return attrs, nil
 }

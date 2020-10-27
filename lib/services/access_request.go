@@ -151,7 +151,7 @@ type AccessRequestUpdate struct {
 	RequestID string
 	State     RequestState
 	Reason    string
-	Attrs     map[string]string
+	Attrs     map[string][]string
 	Roles     []string
 }
 
@@ -223,8 +223,8 @@ type AccessRequest interface {
 	SetRequestReason(string)
 	GetResolveReason() string
 	SetResolveReason(string)
-	GetResolveAttrs() map[string]string
-	SetResolveAttrs(map[string]string)
+	GetResolveAttrs() map[string][]string
+	SetResolveAttrs(map[string][]string)
 
 	// CheckAndSetDefaults validates the access request and
 	// supplies default values where appropriate.
@@ -479,11 +479,11 @@ func (r *AccessRequestV3) SetResolveReason(reason string) {
 	r.Spec.ResolveReason = reason
 }
 
-func (r *AccessRequestV3) GetResolveAttrs() map[string]string {
+func (r *AccessRequestV3) GetResolveAttrs() map[string][]string {
 	return r.Spec.ResolveAttrs
 }
 
-func (r *AccessRequestV3) SetResolveAttrs(attrs map[string]string) {
+func (r *AccessRequestV3) SetResolveAttrs(attrs map[string][]string) {
 	r.Spec.ResolveAttrs = attrs
 }
 

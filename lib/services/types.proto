@@ -567,8 +567,14 @@ message AccessRequestSpecV3 {
     // of the request (approval, denail, etc...).
     string ResolveReason = 7 [ (gogoproto.jsontag) = "resolve_reason,omitempty" ];
 
-    // ResolveAttrs are arbitrary attributes applied at the time of resolution.
-    map<string, string> ResolveAttrs = 8 [ (gogoproto.jsontag) = "resolve_attrs,omitempty" ];
+    // ResolveAttrs are key/value pairs received from plugins during request
+    // resolution.  They are currently only used to provide additional logging
+    // information.
+    wrappers.LabelValues ResolveAttrs = 8 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "resolve_attrs,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+    ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
