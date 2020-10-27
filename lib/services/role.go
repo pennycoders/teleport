@@ -39,6 +39,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 )
@@ -667,8 +668,13 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
 	if r.Spec.Allow.NodeLabels == nil {
-		r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
+		if r.Spec.Options.RestrictedRole {
+			r.Spec.Allow.NodeLabels = Labels{}
+		} else {
+			r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
+		}
 	}
+
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
@@ -721,6 +727,21 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		err := r.Spec.Deny.Rules[i].CheckAndSetDefaults()
 		if err != nil {
 			return trace.BadParameter("failed to process 'deny' rule %v: %v", i, err)
+		}
+	}
+
+	if r.Spec.Options.RestrictedRole {
+		if len(r.Spec.Allow.Logins) > 0 {
+			return trace.BadParameter("restricted roles cannot grant logins")
+		}
+		if len(r.Spec.Allow.NodeLabels) > 0 {
+			return trace.BadParameter("restricted roles cannot grant node labels")
+		}
+		if len(r.Spec.Allow.KubeGroups) > 0 {
+			return trace.BadParameter("restricted roles cannot grant kube groups")
+		}
+		if len(r.Spec.Allow.Rules) > 0 {
+			return trace.BadParameter("restricted roles cannot contain allow rules")
 		}
 	}
 	return nil
@@ -1620,6 +1641,20 @@ func (set RoleSet) HasRole(role string) bool {
 	return false
 }
 
+// IsAllRestricted checks if all roles are in restricted mode,
+// which would indicate that this role set confers no logins.
+func (set RoleSet) IsAllRestricted() bool {
+	for _, r := range set {
+		if r.GetName() == teleport.DefaultImplicitRole {
+			continue
+		}
+		if !r.GetOptions().RestrictedRole {
+			return false
+		}
+	}
+	return true
+}
+
 // AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 // for this role set, otherwise it returns ttl unchanged
 func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
@@ -1736,6 +1771,7 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	logins := make(map[string]bool)
 	var matchedTTL bool
 	for _, role := range set {
+		fmt.Printf("---> ROLE: %s\n", role)
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
 			matchedTTL = true
@@ -1748,6 +1784,10 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	if !matchedTTL {
 		return nil, trace.AccessDenied("this user cannot request a certificate for %v", ttl)
 	}
+	if len(logins) == 0 && set.IsAllRestricted() {
+		logins[uuid.New()] = true
+	}
+
 	if len(logins) == 0 {
 		return nil, trace.AccessDenied("this user cannot create SSH sessions, has no allowed logins")
 	}
@@ -2327,7 +2367,8 @@ const RoleSpecV3SchemaTemplate = `{
         },
         "max_connections": { "type": "number" },
         "max_sessions": {"type": "number"},
-		"request_access": { "type": "string" }
+		"request_access": { "type": "string" },
+		"restricted_role": {"type": "boolean" }
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },
