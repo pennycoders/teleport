@@ -47,6 +47,8 @@ type AccessRequestCommand struct {
 	// format is the output format, e.g. text or json
 	format string
 
+	dryRun bool
+
 	requestList    *kingpin.CmdClause
 	requestApprove *kingpin.CmdClause
 	requestDeny    *kingpin.CmdClause
@@ -77,7 +79,9 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 
 	c.requestCreate = requests.Command("create", "Create pending access request")
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
-	c.requestCreate.Flag("roles", "Roles to be requested").Required().StringVar(&c.roles)
+	c.requestCreate.Flag("roles", "Roles to be requested").Default("*").StringVar(&c.roles)
+	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
+	c.requestCreate.Flag("dry-run", "Don't actually generate the access request").BoolVar(&c.dryRun)
 
 	c.requestDelete = requests.Command("rm", "Delete an access request")
 	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -197,6 +201,14 @@ func (c *AccessRequestCommand) Create(client auth.ClientI) error {
 	req, err := services.NewAccessRequest(c.user, c.splitRoles()...)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	req.SetRequestReason(c.reason)
+
+	if c.dryRun {
+		if err := services.ValidateAccessRequest(client, req, true); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(c.PrintAccessRequests(client, []services.AccessRequest{req}, "json"))
 	}
 	if err := client.CreateAccessRequest(context.TODO(), req); err != nil {
 		return trace.Wrap(err)
