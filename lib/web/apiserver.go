@@ -160,6 +160,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
+	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 	h.POST("/webapi/sessions/renew/:requestId", h.WithAuth(h.renewSession))
 
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
@@ -1139,7 +1140,7 @@ func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
 
 // renewSession is called in two ways:
 // 	- Without requestId: Creates new session that is about to expire.
-// 	- With requestId: Creates new session that includes additional roles assigned with access request.
+// 	- With requestId: Creates new session that includes additional roles assigned with approving access request.
 //
 // 	It issues the new session and generates new session cookie.
 // 	It's important to understand that the old session becomes effectively invalid.

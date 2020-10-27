@@ -827,7 +827,7 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 			return nil, trace.BadParameter("access request %q has expired", accessRequestID)
 		}
 
-		roles = append(roles, reqs[0].GetRoles()...)
+		roles = append(roles, ac.GetRoles()...)
 	}
 
 	sess, err := a.NewWebSession(user, roles, traits)
