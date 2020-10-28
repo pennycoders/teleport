@@ -29,11 +29,27 @@ All Teleport clusters have a User and Host CA used to issue user and host SSH an
 
 #### Verification
 
-An unauthenticated endpoint will be added at https://proxy.example.com:3080/.well-known/jwks.json endpoint which returns the public keys that can be used to verify the signed JWT. Multiple keys are supported because JWT signers can be rotated similar to CAs.
+An unauthenticated endpoint at `https://proxy.example.com:3080/.well-known/jwks.json` returns the public keys that can be used to verify the signed JWT. Multiple keys are supported because JWT signers can be rotated similar to CAs.
 
-Many sources exist that explain the JWT signature scheme and how to verify a JWT. Introduction to JSON Web Tokens is a good starting point for general JWT information.
+The keys are in the [JWK](https://tools.ietf.org/html/rfc7517) format. Example output of this endpoint is below.
 
-However, we strongly recommend you use a well written and supported library in the language of your choice to validate the JWT and you not try to write parsing and validation code yourself. We have provided an example within Teleport on how to validate the JWT token written in Go.
+```
+$ curl https://proxy.example.com:3080/.well-known/jwks.json | jq .
+{
+  "keys": [
+    {
+      "kty": "rsa",
+      "alg": "RS256",
+      "n": "xk-0VSVZY76QGqeN9TD-FJp32s8jZrpsalnRoFwlZ_JwPbbd5-_bPKcz8o2tv1eJS0Ll6ePxRCyK68Jz2UC4V4RiYaqJCRq_qVpDQMB1sQ7p9M-8qvT82FJ-Rv-W4RNe3xRmBSFDYdXaFm51Uk8OIYfv-oZ0kGptKpkNY390aJOzjHPH2MqSvhk9Xn8GwM8kEbpSllavdJCRPCeNVGJXiSCsWrOA_wsv_jqBP6g3UOA9GnI8R6HR14OxV3C184vb3NxIqxtrW0C4W6UtSbMDcKcNCgajq2l56pHO8In5GoPCrHqlo379LE5QqpXeeHj8uqcjeGdxXTuPrRq1AuBpvQ",
+      "e": "AQAB"
+    }
+  ]
+}
+```
+
+While the RFC explains the format of these keys and how parse and verify a JWT token, we strongly recommend you use a well written and supported library in the language of your choice to validate the JWT and you not try to write parsing and validation code yourself.
+
+We have provided an example within Teleport on how to [validate the JWT token](https://github.com/gravitational/teleport/blob/a7fca6bf2bc15fc487620b410151c2108ac1d6cc/lib/jwt/jwt.go#L192-L225) written in Go.
 
 #### Claims
 
