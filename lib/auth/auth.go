@@ -778,8 +778,8 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) e
 	return nil
 }
 
-// ExtendWebSession creates a new web session for a user based on a valid previous sessionID,
-// method is used to renew the web session for a user
+// ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
+// Additional roles are appended to intial roles if there is an approved access request.
 func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
 	prevSession, err := a.GetWebSession(user, prevSessionID)
 	if err != nil {
@@ -800,12 +800,12 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 	}
 
 	if accessRequestID != "" {
-		req := services.AccessRequestFilter{
+		reqFilter := services.AccessRequestFilter{
 			User: user,
 			ID:   accessRequestID,
 		}
 
-		reqs, err := a.GetAccessRequests(context.TODO(), req)
+		reqs, err := a.GetAccessRequests(context.TODO(), reqFilter)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -814,20 +814,20 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 			return nil, trace.NotFound("access request %q not found", accessRequestID)
 		}
 
-		ac := reqs[0]
+		req := reqs[0]
 
-		if !ac.GetState().IsApproved() {
-			if ac.GetState().IsDenied() {
+		if !req.GetState().IsApproved() {
+			if req.GetState().IsDenied() {
 				return nil, trace.BadParameter("access request %q has been denied", accessRequestID)
 			}
 			return nil, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
 		}
 
-		if ac.GetAccessExpiry().Before(a.GetClock().Now()) {
+		if req.GetAccessExpiry().Before(a.GetClock().Now()) {
 			return nil, trace.BadParameter("access request %q has expired", accessRequestID)
 		}
 
-		roles = append(roles, ac.GetRoles()...)
+		roles = append(roles, req.GetRoles()...)
 	}
 
 	sess, err := a.NewWebSession(user, roles, traits)

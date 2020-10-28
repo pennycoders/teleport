@@ -30,9 +30,9 @@ type access struct {
 	Delete bool `json:"remove"`
 }
 
-type accountAccess struct {
-	RequireReason   bool `json:"requireReason"`
-	RequireApproval bool `json:"requireApproval"`
+type dynamicAccess struct {
+	RequestStrategy string `json:"requestStrategy"`
+	RequestPrompt   string `json:"requestPrompt"`
 }
 
 type userACL struct {
@@ -52,8 +52,8 @@ type userACL struct {
 	Tokens access `json:"tokens"`
 	// Nodes defines access to nodes.
 	Nodes access `json:"nodes"`
-	// Account determines if user needs to request for access to account.
-	Account accountAccess `json:"account"`
+	// Request determines if user needs to request for access.
+	Request dynamicAccess `json:"request"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -120,28 +120,27 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 	}
 }
 
-func getAccountAccess(roleset services.RoleSet) accountAccess {
-	requireReason := false
-	requireApproval := false
+func getRequestAccess(roleset services.RoleSet) dynamicAccess {
+	strategy := services.RequestStrategyOptional
+	prompt := ""
 
 	for _, role := range roleset {
 		r := role.GetOptions()
-		if r.RequireRequestReason {
-			requireReason = true
-		}
 
-		if r.AutoRequestAccess {
-			requireApproval = true
-		}
-
-		if requireReason && requireApproval {
+		if r.RequestAccess == services.RequestStrategyReason {
+			strategy = services.RequestStrategyReason
+			prompt = r.RequestPrompt
 			break
+		}
+
+		if r.RequestAccess == services.RequestStrategyAlways {
+			strategy = services.RequestStrategyAlways
 		}
 	}
 
-	return accountAccess{
-		RequireReason:   requireReason,
-		RequireApproval: requireApproval,
+	return dynamicAccess{
+		RequestStrategy: strategy,
+		RequestPrompt:   prompt,
 	}
 }
 
@@ -157,7 +156,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	logins := getLogins(userRoles)
-	accountAccess := getAccountAccess(userRoles)
+	requestAccess := getRequestAccess(userRoles)
 
 	acl := userACL{
 		AuthConnectors:  authConnectors,
@@ -169,7 +168,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 		Users:           userAccess,
 		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,
-		Account:         accountAccess,
+		Request:         requestAccess,
 	}
 
 	// local user
