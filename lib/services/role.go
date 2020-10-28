@@ -1785,7 +1785,7 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 		return nil, trace.AccessDenied("this user cannot request a certificate for %v", ttl)
 	}
 	if len(logins) == 0 && set.IsAllRestricted() {
-		logins[uuid.New()] = true
+		logins["teleport-nologin-"+uuid.New()] = true
 	}
 
 	if len(logins) == 0 {
