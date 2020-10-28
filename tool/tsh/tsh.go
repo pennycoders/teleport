@@ -823,10 +823,26 @@ func executeAccessRequest(cf *CLIConf) error {
 	}
 	req.SetRequestReason(cf.RequestReason)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
-	if err := getRequestApproval(cf, tc, req); err != nil {
+
+	res, err := getRequestResolution(cf, tc, req)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Fprintf(os.Stderr, "Approval received, getting updated certificates...\n\n")
+
+	if !res.GetState().IsApproved() {
+		msg := fmt.Sprintf("request %s has been set to %s", res.GetName(), res.GetState().String())
+		if reason := res.GetResolveReason(); reason != "" {
+			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
+		}
+		return trace.Errorf(msg)
+	}
+
+	msg := "\nApproval received, getting updated certificates...\n\n"
+	if reason := res.GetResolveReason(); reason != "" {
+		msg = fmt.Sprintf("\nApproval received, reason=%q\nGetting updated certificates...\n\n", reason)
+	}
+	fmt.Fprintf(os.Stderr, msg)
+
 	if err := reissueWithRequests(cf, tc, req.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1472,8 +1488,8 @@ func host(in string) string {
 	return out
 }
 
-// getRequestApproval registers an access request with the auth server and waits for it to be approved.
-func getRequestApproval(cf *CLIConf, tc *client.TeleportClient, req services.AccessRequest) error {
+// getRequestResolution registers an access request with the auth server and waits for it to be resolved.
+func getRequestResolution(cf *CLIConf, tc *client.TeleportClient, req services.AccessRequest) (services.AccessRequest, error) {
 	// set up request watcher before submitting the request to the admin server
 	// in order to avoid potential race.
 	filter := services.AccessRequestFilter{
@@ -1489,11 +1505,11 @@ func getRequestApproval(cf *CLIConf, tc *client.TeleportClient, req services.Acc
 		},
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
 	if err := tc.CreateAccessRequest(cf.Context, req); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 Loop:
 	for {
@@ -1506,31 +1522,24 @@ Loop:
 			case backend.OpPut:
 				r, ok := event.Resource.(*services.AccessRequestV3)
 				if !ok {
-					return trace.BadParameter("unexpected resource type %T", event.Resource)
+					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 				if r.GetName() != req.GetName() || r.GetState().IsPending() {
 					log.Infof("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
 					continue Loop
 				}
-				if !r.GetState().IsApproved() {
-					msg := fmt.Sprintf("request %s has been set to %s", r.GetName(), r.GetState().String())
-					if reason := r.GetResolveReason(); reason != "" {
-						msg = fmt.Sprintf("%s, reason=%q", msg, reason)
-					}
-					return trace.Errorf(msg)
-				}
-				return nil
+				return r, nil
 			case backend.OpDelete:
 				if event.Resource.GetName() != req.GetName() {
 					log.Infof("Skipping delete event id=%s", event.Resource.GetName())
 					continue Loop
 				}
-				return trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-watcher.Done():
-			return trace.Wrap(watcher.Error())
+			return nil, trace.Wrap(watcher.Error())
 		}
 	}
 }
