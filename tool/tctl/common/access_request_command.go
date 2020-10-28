@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -228,6 +229,9 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 
 // PrintAccessRequests prints access requests
 func (c *AccessRequestCommand) PrintAccessRequests(client auth.ClientI, reqs []services.AccessRequest, format string) error {
+	sort.Slice(reqs, func(i, j int) bool {
+		return reqs[i].GetCreationTime().After(reqs[j].GetCreationTime())
+	})
 	switch format {
 	case teleport.Text:
 		table := asciitable.MakeTable([]string{"Token", "Requestor", "Metadata", "Created At (UTC)", "Status"})
