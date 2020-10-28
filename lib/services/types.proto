@@ -739,7 +739,10 @@ message RoleOptions {
     // where optional is the default.
     string RequestAccess = 11 [ (gogoproto.jsontag) = "request_access,omitempty" ];
 
-    bool RestrictedRole = 12 [ (gogoproto.jsontag) = "restricted_role,omitempty" ];
+    // RequestPrompt is an optional message which tells users what they aught to
+    string RequestPrompt = 12 [ (gogoproto.jsontag) = "request_prompt,omitempty" ];
+
+    bool RestrictedRole = 13 [ (gogoproto.jsontag) = "restricted_role,omitempty" ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or

@@ -2368,6 +2368,7 @@ const RoleSpecV3SchemaTemplate = `{
         "max_connections": { "type": "number" },
         "max_sessions": {"type": "number"},
 		"request_access": { "type": "string" },
+        "request_prompt": { "type": "string" },
 		"restricted_role": {"type": "boolean" }
       }
     },

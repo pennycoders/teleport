@@ -554,6 +554,7 @@ func onLogin(cf *CLIConf) {
 
 	if cf.DesiredRoles == "" {
 		var reason, always bool
+		var prompt string
 		roleNames, err := key.CertRoles()
 		if err != nil {
 			tc.Logout()
@@ -568,6 +569,9 @@ func onLogin(cf *CLIConf) {
 			switch role.GetOptions().RequestAccess {
 			case services.RequestStrategyReason:
 				reason, always = true, true
+				if p := role.GetOptions().RequestPrompt; p != "" {
+					prompt = p
+				}
 			case services.RequestStrategyAlways:
 				always = true
 				break
@@ -575,7 +579,11 @@ func onLogin(cf *CLIConf) {
 		}
 		if reason && cf.RequestReason == "" {
 			tc.Logout()
-			utils.FatalError(trace.BadParameter("--request-reason must be specified"))
+			msg := "--requst-reason must be specified"
+			if prompt != "" {
+				msg = msg + ", prompt=" + prompt
+			}
+			utils.FatalError(trace.BadParameter(msg))
 		}
 		if always {
 			cf.DesiredRoles = "*"
