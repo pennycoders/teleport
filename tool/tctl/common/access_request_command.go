@@ -40,11 +40,11 @@ type AccessRequestCommand struct {
 	config *service.Config
 	reqIDs string
 
-	user      string
-	roles     string
-	delegator string
-	reason    string
-	attrs     string
+	user        string
+	roles       string
+	delegator   string
+	reason      string
+	annotations string
 	// format is the output format, e.g. text or json
 	format string
 
@@ -69,14 +69,14 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 	c.requestApprove.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
 	c.requestApprove.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
-	c.requestApprove.Flag("attrs", "Resolution attributes <key>=<val>[,...]").StringVar(&c.attrs)
+	c.requestApprove.Flag("annotations", "Resolution attributes <key>=<val>[,...]").StringVar(&c.annotations)
 	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roles)
 
 	c.requestDeny = requests.Command("deny", "Deny pending access request")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
 	c.requestDeny.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestDeny.Flag("reason", "Optional reason message").StringVar(&c.reason)
-	c.requestDeny.Flag("attrs", "Resolution attributes <key>=<val>[,...]").StringVar(&c.attrs)
+	c.requestDeny.Flag("annotations", "Resolution annotations <key>=<val>[,...]").StringVar(&c.annotations)
 
 	c.requestCreate = requests.Command("create", "Create pending access request")
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
@@ -118,9 +118,9 @@ func (c *AccessRequestCommand) List(client auth.ClientI) error {
 	return nil
 }
 
-func (c *AccessRequestCommand) splitAttrs() (map[string][]string, error) {
-	attrs := make(map[string][]string)
-	for _, s := range strings.Split(c.attrs, ",") {
+func (c *AccessRequestCommand) splitAnnotations() (map[string][]string, error) {
+	annotations := make(map[string][]string)
+	for _, s := range strings.Split(c.annotations, ",") {
 		if s == "" {
 			continue
 		}
@@ -135,11 +135,11 @@ func (c *AccessRequestCommand) splitAttrs() (map[string][]string, error) {
 		if val == "" {
 			return nil, trace.BadParameter("empty sttr val")
 		}
-		vals := attrs[key]
+		vals := annotations[key]
 		vals = append(vals, val)
-		attrs[key] = vals
+		annotations[key] = vals
 	}
-	return attrs, nil
+	return annotations, nil
 }
 
 func (c *AccessRequestCommand) splitRoles() []string {
@@ -158,17 +158,17 @@ func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 	if c.delegator != "" {
 		ctx = auth.WithDelegator(ctx, c.delegator)
 	}
-	attrs, err := c.splitAttrs()
+	annotations, err := c.splitAnnotations()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
-			RequestID: reqID,
-			State:     services.RequestState_APPROVED,
-			Reason:    c.reason,
-			Attrs:     attrs,
-			Roles:     c.splitRoles(),
+			RequestID:   reqID,
+			State:       services.RequestState_APPROVED,
+			Reason:      c.reason,
+			Annotations: annotations,
+			Roles:       c.splitRoles(),
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -181,16 +181,16 @@ func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
 	if c.delegator != "" {
 		ctx = auth.WithDelegator(ctx, c.delegator)
 	}
-	attrs, err := c.splitAttrs()
+	annotations, err := c.splitAnnotations()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
-			RequestID: reqID,
-			State:     services.RequestState_DENIED,
-			Reason:    c.reason,
-			Attrs:     attrs,
+			RequestID:   reqID,
+			State:       services.RequestState_DENIED,
+			Reason:      c.reason,
+			Annotations: annotations,
 		}); err != nil {
 			return trace.Wrap(err)
 		}

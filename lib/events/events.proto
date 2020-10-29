@@ -550,10 +550,10 @@ message AccessRequestCreate {
     // created or updated.
     string Reason = 8 [ (gogoproto.jsontag) = "reason,omitempty" ];
 
-    // Attrs is an optional set of attributes supplied by a plugin during
+    // Annotations is an optional set of attributes supplied by a plugin during
     // approval/denail of the request.
-    google.protobuf.Struct Attrs = 9
-        [ (gogoproto.jsontag) = "attrs,omitempty", (gogoproto.casttype) = "Struct" ];
+    google.protobuf.Struct Annotations = 9
+        [ (gogoproto.jsontag) = "annotations,omitempty", (gogoproto.casttype) = "Struct" ];
 }
 
 // PortForward is emitted when a user requests port forwarding.

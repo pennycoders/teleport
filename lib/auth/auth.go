@@ -1550,17 +1550,19 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		RequestID:    params.RequestID,
 		RequestState: params.State.String(),
 		Reason:       params.Reason,
+		Roles:        params.Roles,
 	}
+
 	if delegator := getDelegator(ctx); delegator != "" {
 		event.Delegator = delegator
 	}
 
-	if len(params.Attrs) > 0 {
-		attrs, err := events.EncodeMapStrings(params.Attrs)
+	if len(params.Annotations) > 0 {
+		annotations, err := events.EncodeMapStrings(params.Annotations)
 		if err != nil {
-			log.WithError(err).Debugf("Failed to encode access request attrs.")
+			log.WithError(err).Debugf("Failed to encode access request annotations.")
 		} else {
-			event.Attrs = attrs
+			event.Annotations = annotations
 		}
 	}
 	err := a.emitter.EmitAuditEvent(a.closeCtx, event)

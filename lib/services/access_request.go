@@ -148,11 +148,11 @@ func (f *AccessRequestFilter) Equals(o AccessRequestFilter) bool {
 }
 
 type AccessRequestUpdate struct {
-	RequestID string
-	State     RequestState
-	Reason    string
-	Attrs     map[string][]string
-	Roles     []string
+	RequestID   string
+	State       RequestState
+	Reason      string
+	Annotations map[string][]string
+	Roles       []string
 }
 
 func (u *AccessRequestUpdate) Check() error {
@@ -223,8 +223,8 @@ type AccessRequest interface {
 	SetRequestReason(string)
 	GetResolveReason() string
 	SetResolveReason(string)
-	GetResolveAttrs() map[string][]string
-	SetResolveAttrs(map[string][]string)
+	GetResolveAnnotations() map[string][]string
+	SetResolveAnnotations(map[string][]string)
 
 	// CheckAndSetDefaults validates the access request and
 	// supplies default values where appropriate.
@@ -479,12 +479,12 @@ func (r *AccessRequestV3) SetResolveReason(reason string) {
 	r.Spec.ResolveReason = reason
 }
 
-func (r *AccessRequestV3) GetResolveAttrs() map[string][]string {
-	return r.Spec.ResolveAttrs
+func (r *AccessRequestV3) GetResolveAnnotations() map[string][]string {
+	return r.Spec.ResolveAnnotations
 }
 
-func (r *AccessRequestV3) SetResolveAttrs(attrs map[string][]string) {
-	r.Spec.ResolveAttrs = attrs
+func (r *AccessRequestV3) SetResolveAnnotations(annotations map[string][]string) {
+	r.Spec.ResolveAnnotations = annotations
 }
 
 func (r *AccessRequestV3) CheckAndSetDefaults() error {
@@ -525,8 +525,8 @@ func (r *AccessRequestV3) Check() error {
 		if r.GetResolveReason() != "" {
 			return trace.BadParameter("pending requests cannot include resolve reason")
 		}
-		if len(r.GetResolveAttrs()) != 0 {
-			return trace.BadParameter("pending requests cannot include resolve attrs")
+		if len(r.GetResolveAnnotations()) != 0 {
+			return trace.BadParameter("pending requests cannot include resolve annotations")
 		}
 	}
 	return nil
@@ -640,7 +640,7 @@ const AccessRequestSpecSchema = `{
 		"expires": { "type": "string" },
 		"request_reason": { "type": "string" },
 		"resolve_reason": { "type": "string" },
-		"resolve_attrs": { "type": "object" }
+		"resolve_annotations": { "type": "object" }
 	}
 }`
 

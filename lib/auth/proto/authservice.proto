@@ -167,12 +167,12 @@ message RequestStateSetter {
     // Reason is an optional message indicating the reason for the
     // resolution (approval, denail , etc...).
     string Reason = 4 [ (gogoproto.jsontag) = "reason,omitempty" ];
-    // Attrs are key/value pairs received from plugins during request
+    // Annotations are key/value pairs received from plugins during request
     // resolution.  They are currently only used to provide additional logging
     // information.
-    wrappers.LabelValues Attrs = 5 [
+    wrappers.LabelValues Annotations = 5 [
         (gogoproto.nullable) = false,
-        (gogoproto.jsontag) = "attrs,omitempty",
+        (gogoproto.jsontag) = "annotations,omitempty",
         (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
     ];
     // Roles, if present, overrides the existing set of roles associated

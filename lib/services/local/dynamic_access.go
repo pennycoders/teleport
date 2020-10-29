@@ -87,7 +87,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 			return trace.Wrap(err)
 		}
 		req.SetResolveReason(params.Reason)
-		req.SetResolveAttrs(params.Attrs)
+		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
 			req.SetRoles(params.Roles)
 		}
