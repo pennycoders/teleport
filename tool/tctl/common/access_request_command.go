@@ -234,19 +234,27 @@ func (c *AccessRequestCommand) PrintAccessRequests(client auth.ClientI, reqs []s
 	})
 	switch format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"Token", "Requestor", "Metadata", "Created At (UTC)", "Status"})
+		table := asciitable.MakeTable([]string{"Token", "Requestor", "Metadata", "Created At (UTC)", "Status", "Reasons"})
 		now := time.Now()
 		for _, req := range reqs {
 			if now.After(req.GetAccessExpiry()) {
 				continue
 			}
 			params := fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ","))
+			var reasons []string
+			if r := req.GetRequestReason(); r != "" {
+				reasons = append(reasons, fmt.Sprintf("request=%q", r))
+			}
+			if r := req.GetResolveReason(); r != "" {
+				reasons = append(reasons, fmt.Sprintf("resolve=%q", r))
+			}
 			table.AddRow([]string{
 				req.GetName(),
 				req.GetUser(),
 				params,
 				req.GetCreationTime().Format(time.RFC822),
 				req.GetState().String(),
+				strings.Join(reasons, ", "),
 			})
 		}
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
