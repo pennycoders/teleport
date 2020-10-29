@@ -22,11 +22,12 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
+	//"github.com/gravitational/trace"
 
 	"github.com/stretchr/testify/require"
 )
 
+/*
 type mockUserAndRoleGetter struct {
 	users map[string]*User
 	roles map[string]*Role
@@ -89,7 +90,7 @@ func (g *mockUserAndRoleGetter) GetRoles() ([]Role, error) {
 func TestRequestRoleMatching(t *testing.T) {
 	g := newMockUserAndRoleGetter()
 	g.user("alice").SetRoles([]string{"employee"})
-}
+}*/
 
 // TestAccessRequestMarshaling verifies that marshaling/unmarshaling access requests
 // works as expected (failures likely indicate a problem with json schema).

@@ -855,6 +855,9 @@ type streamWatcher struct {
 func (w *streamWatcher) Error() error {
 	w.RLock()
 	defer w.RUnlock()
+	if w.err == nil {
+		return trace.Wrap(w.ctx.Err())
+	}
 	return w.err
 }
 

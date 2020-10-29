@@ -741,15 +741,13 @@ message RoleOptions {
 
     // RequestPrompt is an optional message which tells users what they aught to
     string RequestPrompt = 12 [ (gogoproto.jsontag) = "request_prompt,omitempty" ];
-
-    bool RestrictedRole = 13 [ (gogoproto.jsontag) = "restricted_role,omitempty" ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
 // denied access.
 message RoleConditions {
     // Logins is a list of *nix system logins.
-    repeated string Logins = 1 [ (gogoproto.jsontag) = "logins" ];
+    repeated string Logins = 1 [ (gogoproto.jsontag) = "logins,omitempty" ];
 
     // Namespaces is a list of namespaces (used to partition a cluster). The
     // field should be called "namespaces" when it returns in Teleport 2.4.
