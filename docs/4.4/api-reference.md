@@ -5,12 +5,6 @@ description: The detailed guide to Teleport API
 
 # Teleport API Reference
 
-Teleport is currently working on documenting our API.
-
-!!! warning
-
-        We are currently working on this project. If you have an API suggestion, [please complete our survey](https://docs.google.com/forms/d/1HPQu5Asg3lR0cu5crnLDhlvovGpFVIIbDMRvqclPhQg/edit).
-
 # gRPC APIs
 
 In most cases, you can interact with teleport using our cli tools, [tsh](cli-docs.md#tsh) and [tctl](cli-docs.md#tctl). However, there are some scenarios where you may need to interact with teleport programmatically. For this purpose, the same gRPC auth API that `tctl` and `tsh` use is available for direct usage.
@@ -18,20 +12,20 @@ In most cases, you can interact with teleport using our cli tools, [tsh](cli-doc
 ## Go Examples
 
 !!! Note
-    The Go examples depend on some code that won't be released until `Teleport version 5.0`. Until then, it would be best to start experimenting with the API with the latest [master branch of Teleport](https://github.com/gravitational/teleport).
+    The Go examples depend on some code that won't be released until Teleport 5.0. Until then, it would be best to start experimenting with the API with the latest [master branch of Teleport](https://github.com/gravitational/teleport).
 
 Below are some code examples that can be used with Teleport to perform a few key tasks.
 
 Before you begin:
 
 - Install [Go](https://golang.org/doc/install) 1.13+ and Setup Go Dev Environment
-- Have access to a Teleport Auth server ([quickstart](quickstart.md))
+- Have access to a Teleport Auth server ([Follow quickstart for setup.](quickstart.md))
 
-The easiest way to get started with the Teleport API is to clone the [Go Client Example](https://github.com/gravitational/teleport/tree/master/examples/go-client) in our github repo. Follow the README there to quickly authenticate the API with your Teleport Auth Server and test the API.
+The easiest way to get started with the Teleport API is to clone the [Go Client Example](https://github.com/gravitational/teleport/tree/master/examples/go-client) in our github repo. Follow the [README](https://github.com/gravitational/teleport/tree/master/examples/go-client#teleport-auth-go-client)  to quickly authenticate the API with your Teleport Auth Server and test the API.
 
 Or if you prefer, follow the authentication, client, and packages sections below to add the necessary files to a new directory called `/api-examples`. At the end, you should have this file structure:
 
-```
+```bash
 api-examples
 +-- api-admin.yaml
 +-- certs
@@ -85,6 +79,8 @@ Add `client.go` into `/api-examples`.
 ## Go Packages
 
 Copy the Teleport module's go.mod below into `/api-examples` and then run `go mod tidy` to slim it down to only what's needed for these api examples.
+
+Skip to [Main File](#main-file).
 
 ```
 {!go.mod!}
@@ -159,7 +155,7 @@ if err = client.UpsertRole(ctx, role); err != nil {
 **Update role**
 
 ```go
-// update the auditor role's ttl to one day
+// update the auditor roles ttl to one day
 role.SetOptions(services.RoleOptions{
 	MaxSessionTTL: services.Duration(time.Hour * 24),
 })
@@ -223,6 +219,9 @@ if err := client.DeleteToken(tokenString); err != nil {
 ```
 
 ## Cluster Labels
+
+!!! Note
+    Cluster labels are only supported in Teleport 5.0
 
 The root cluster in a [trusted cluster](admin-guide.md#adding-nodes-to-the-cluster) can add/update cluster labels on leaf clusters.
 
