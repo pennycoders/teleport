@@ -132,13 +132,13 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 
 func (b *Backend) findStream(ctx context.Context) (*string, error) {
 	status, err := b.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(b.Tablename),
+		TableName: aws.String(b.TableName),
 	})
 	if err != nil {
 		return nil, trace.Wrap(convertError(err))
 	}
 	if status.Table.LatestStreamArn == nil {
-		return nil, trace.NotFound("No streams found for table %v", b.Tablename)
+		return nil, trace.NotFound("No streams found for table %v", b.TableName)
 	}
 	return status.Table.LatestStreamArn, nil
 }
@@ -299,7 +299,7 @@ func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *
 
 func (b *Backend) turnOnTimeToLive(ctx context.Context) error {
 	status, err := b.svc.DescribeTimeToLiveWithContext(ctx, &dynamodb.DescribeTimeToLiveInput{
-		TableName: aws.String(b.Tablename),
+		TableName: aws.String(b.TableName),
 	})
 	if err != nil {
 		return trace.Wrap(convertError(err))
@@ -309,7 +309,7 @@ func (b *Backend) turnOnTimeToLive(ctx context.Context) error {
 		return nil
 	}
 	_, err = b.svc.UpdateTimeToLiveWithContext(ctx, &dynamodb.UpdateTimeToLiveInput{
-		TableName: aws.String(b.Tablename),
+		TableName: aws.String(b.TableName),
 		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
 			AttributeName: aws.String(ttlKey),
 			Enabled:       aws.Bool(true),
@@ -320,7 +320,7 @@ func (b *Backend) turnOnTimeToLive(ctx context.Context) error {
 
 func (b *Backend) turnOnStreams(ctx context.Context) error {
 	status, err := b.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(b.Tablename),
+		TableName: aws.String(b.TableName),
 	})
 	if err != nil {
 		return trace.Wrap(convertError(err))
@@ -329,7 +329,7 @@ func (b *Backend) turnOnStreams(ctx context.Context) error {
 		return nil
 	}
 	_, err = b.svc.UpdateTableWithContext(ctx, &dynamodb.UpdateTableInput{
-		TableName: aws.String(b.Tablename),
+		TableName: aws.String(b.TableName),
 		StreamSpecification: &dynamodb.StreamSpecification{
 			StreamEnabled:  aws.Bool(true),
 			StreamViewType: aws.String(dynamodb.StreamViewTypeNewImage),
