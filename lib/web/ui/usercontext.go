@@ -30,31 +30,31 @@ type access struct {
 	Delete bool `json:"remove"`
 }
 
-type dynamicAccess struct {
-	RequestStrategy string `json:"requestStrategy"`
-	RequestPrompt   string `json:"requestPrompt"`
+type accessStrategy struct {
+	Type   string `json:"type"`
+	Prompt string `json:"prompt"`
 }
 
 type userACL struct {
-	// Sessions defines access to recorded sessions
+	// Sessions defines access to recorded sessions.
 	Sessions access `json:"sessions"`
-	// AuthConnectors defines access to auth.connectors
+	// AuthConnectors defines access to auth.connectors.
 	AuthConnectors access `json:"authConnectors"`
-	// Roles defines access to roles
+	// Roles defines access to roles.
 	Roles access `json:"roles"`
 	// Users defines access to users.
 	Users access `json:"users"`
-	// TrustedClusters defines access to trusted clusters
+	// TrustedClusters defines access to trusted clusters.
 	TrustedClusters access `json:"trustedClusters"`
-	// Events defines access to audit logs
+	// Events defines access to audit logs.
 	Events access `json:"events"`
 	// Tokens defines access to tokens.
 	Tokens access `json:"tokens"`
 	// Nodes defines access to nodes.
 	Nodes access `json:"nodes"`
-	// Request determines if user needs to request for access.
-	Request dynamicAccess `json:"request"`
-	// SSH defines access to servers
+	// AccessStrategy describes access strategy to teleport resources.
+	AccessStrategy accessStrategy `json:"accessStrategy"`
+	// SSH defines access to servers.
 	SSHLogins []string `json:"sshLogins"`
 }
 
@@ -120,27 +120,26 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 	}
 }
 
-func getRequestAccess(roleset services.RoleSet) dynamicAccess {
+func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 	strategy := services.RequestStrategyOptional
 	prompt := ""
 
 	for _, role := range roleset {
-		r := role.GetOptions()
-
-		if r.RequestAccess == services.RequestStrategyReason {
+		options := role.GetOptions()
+		if options.RequestAccess == services.RequestStrategyReason {
 			strategy = services.RequestStrategyReason
-			prompt = r.RequestPrompt
+			prompt = options.RequestPrompt
 			break
 		}
 
-		if r.RequestAccess == services.RequestStrategyAlways {
+		if options.RequestAccess == services.RequestStrategyAlways {
 			strategy = services.RequestStrategyAlways
 		}
 	}
 
-	return dynamicAccess{
-		RequestStrategy: strategy,
-		RequestPrompt:   prompt,
+	return accessStrategy{
+		Type:   strategy,
+		Prompt: prompt,
 	}
 }
 
@@ -156,19 +155,19 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	logins := getLogins(userRoles)
-	requestAccess := getRequestAccess(userRoles)
+	accessStrategy := getAccessStrategy(userRoles)
 
 	acl := userACL{
+		AccessStrategy:  accessStrategy,
 		AuthConnectors:  authConnectors,
-		TrustedClusters: trustedClusterAccess,
-		Sessions:        sessionAccess,
-		Roles:           roleAccess,
 		Events:          eventAccess,
-		SSHLogins:       logins,
-		Users:           userAccess,
-		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,
-		Request:         requestAccess,
+		Roles:           roleAccess,
+		Sessions:        sessionAccess,
+		SSHLogins:       logins,
+		Tokens:          tokenAccess,
+		TrustedClusters: trustedClusterAccess,
+		Users:           userAccess,
 	}
 
 	// local user
