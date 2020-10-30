@@ -89,6 +89,15 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		req.SetResolveReason(params.Reason)
 		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
+		Outer:
+			for _, pr := range params.Roles {
+				for _, r := range req.GetRoles() {
+					if pr == r {
+						continue Outer
+					}
+				}
+				return trace.BadParameter("invalid role override, request does not contain %q", pr)
+			}
 			req.SetRoles(params.Roles)
 		}
 

@@ -225,6 +225,8 @@ type AccessRequest interface {
 	SetResolveReason(string)
 	GetResolveAnnotations() map[string][]string
 	SetResolveAnnotations(map[string][]string)
+	GetSystemAnnotations() map[string][]string
+	SetSystemAnnotations(map[string][]string)
 
 	// CheckAndSetDefaults validates the access request and
 	// supplies default values where appropriate.
@@ -301,25 +303,36 @@ type UserAndRoleGetter interface {
 	GetRoles() ([]Role, error)
 }
 
-type requestRoleMatcher struct {
+type requestValidator struct {
 	traits map[string][]string
-	Allow  []parse.Matcher
-	Deny   []parse.Matcher
-}
-
-func newRequestRoleMatcher(traits map[string][]string) requestRoleMatcher {
-	return requestRoleMatcher{
-		traits: traits,
+	state  RequestState
+	Roles  struct {
+		Allow, Deny []parse.Matcher
+	}
+	Annotations struct {
+		Allow, Deny map[string][]string
 	}
 }
 
-func (m *requestRoleMatcher) push(role Role) error {
+func newRequestValidator(traits map[string][]string, state RequestState) requestValidator {
+	m := requestValidator{
+		traits: traits,
+		state:  state,
+	}
+	if m.state.IsPending() {
+		m.Annotations.Allow = make(map[string][]string)
+		m.Annotations.Deny = make(map[string][]string)
+	}
+	return m
+}
+
+func (m *requestValidator) push(role Role) error {
 	for _, d := range role.GetAccessRequestConditions(Deny).Roles {
 		md, err := parse.NewMatcher(d)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		m.Deny = append(m.Deny, md)
+		m.Roles.Deny = append(m.Roles.Deny, md)
 	}
 
 	for _, d := range role.GetAccessRequestConditions(Deny).GetTraitMappings().TraitsToRoles(m.traits) {
@@ -327,7 +340,22 @@ func (m *requestRoleMatcher) push(role Role) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		m.Deny = append(m.Deny, md)
+		m.Roles.Deny = append(m.Roles.Deny, md)
+	}
+
+	if m.state.IsPending() {
+		for kd, vd := range role.GetAccessRequestConditions(Deny).Annotations {
+			var vals []string
+		Dval:
+			for _, d := range vd {
+				applied, err := applyValueTraits(d, m.traits)
+				if err != nil {
+					continue Dval
+				}
+				vals = append(vals, applied...)
+			}
+			m.Annotations.Deny[kd] = append(m.Annotations.Deny[kd], vals...)
+		}
 	}
 
 	for _, a := range role.GetAccessRequestConditions(Allow).Roles {
@@ -335,7 +363,7 @@ func (m *requestRoleMatcher) push(role Role) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		m.Allow = append(m.Allow, ma)
+		m.Roles.Allow = append(m.Roles.Allow, ma)
 	}
 
 	for _, a := range role.GetAccessRequestConditions(Allow).GetTraitMappings().TraitsToRoles(m.traits) {
@@ -343,24 +371,55 @@ func (m *requestRoleMatcher) push(role Role) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		m.Allow = append(m.Allow, ma)
+		m.Roles.Allow = append(m.Roles.Allow, ma)
 	}
 
+	if m.state.IsPending() {
+		for ka, va := range role.GetAccessRequestConditions(Allow).Annotations {
+			var vals []string
+		Avals:
+			for _, a := range va {
+				applied, err := applyValueTraits(a, m.traits)
+				if err != nil {
+					continue Avals
+				}
+				vals = append(vals, applied...)
+			}
+			m.Annotations.Allow[ka] = append(m.Annotations.Allow[ka], vals...)
+		}
+	}
 	return nil
 }
 
-func (m *requestRoleMatcher) CanRequestRole(name string) bool {
-	for _, deny := range m.Deny {
+func (m *requestValidator) CanRequestRole(name string) bool {
+	for _, deny := range m.Roles.Deny {
 		if deny.Match(name) {
 			return false
 		}
 	}
-	for _, allow := range m.Allow {
+	for _, allow := range m.Roles.Allow {
 		if allow.Match(name) {
 			return true
 		}
 	}
 	return false
+}
+
+func (m *requestValidator) SystemAnnotations() map[string][]string {
+	annotations := make(map[string][]string)
+	for k, va := range m.Annotations.Allow {
+		var filtered []string
+		for _, v := range va {
+			if !utils.SliceContainsStr(m.Annotations.Deny[k], v) {
+				filtered = append(filtered, v)
+			}
+		}
+		if len(filtered) == 0 {
+			continue
+		}
+		annotations[k] = filtered
+	}
+	return annotations
 }
 
 func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRoles bool) error {
@@ -370,14 +429,14 @@ func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRo
 	}
 
 	var requireReason bool
-	matcher := newRequestRoleMatcher(user.GetTraits())
+	validator := newRequestValidator(user.GetTraits(), req.GetState())
 
 	for _, roleName := range user.GetRoles() {
 		role, err := getter.GetRole(roleName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := matcher.push(role); err != nil {
+		if err := validator.push(role); err != nil {
 			return trace.Wrap(err)
 		}
 		if role.GetOptions().RequestAccess == RequestStrategyReason {
@@ -404,7 +463,7 @@ func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRo
 		}
 		var expanded []string
 		for _, role := range allRoles {
-			if n := role.GetName(); !held[n] && matcher.CanRequestRole(n) {
+			if n := role.GetName(); !held[n] && validator.CanRequestRole(n) {
 				expanded = append(expanded, n)
 			}
 		}
@@ -412,9 +471,13 @@ func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRo
 	}
 
 	for _, roleName := range req.GetRoles() {
-		if !matcher.CanRequestRole(roleName) {
+		if !validator.CanRequestRole(roleName) {
 			return trace.BadParameter("user %q cannot request/assume role %q", req.GetUser(), roleName)
 		}
+	}
+
+	if req.GetState().IsPending() {
+		req.SetSystemAnnotations(validator.SystemAnnotations())
 	}
 
 	return nil
@@ -485,6 +548,14 @@ func (r *AccessRequestV3) GetResolveAnnotations() map[string][]string {
 
 func (r *AccessRequestV3) SetResolveAnnotations(annotations map[string][]string) {
 	r.Spec.ResolveAnnotations = annotations
+}
+
+func (r *AccessRequestV3) GetSystemAnnotations() map[string][]string {
+	return r.Spec.SystemAnnotations
+}
+
+func (r *AccessRequestV3) SetSystemAnnotations(annotations map[string][]string) {
+	r.Spec.SystemAnnotations = annotations
 }
 
 func (r *AccessRequestV3) CheckAndSetDefaults() error {
@@ -640,7 +711,8 @@ const AccessRequestSpecSchema = `{
 		"expires": { "type": "string" },
 		"request_reason": { "type": "string" },
 		"resolve_reason": { "type": "string" },
-		"resolve_annotations": { "type": "object" }
+		"resolve_annotations": { "type": "object" },
+		"system_annotations": { "type": "object" }
 	}
 }`
 
