@@ -1,7 +1,5 @@
-// +build dynamodb
-
 /*
-Copyright 2015-2018 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +12,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package dynamo
@@ -42,6 +39,10 @@ type DynamoDBSuite struct {
 var _ = check.Suite(&DynamoDBSuite{})
 
 func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	utils.InitLoggerForTests(testing.Verbose())
 	var err error
 
@@ -63,50 +64,94 @@ func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
 //
 // TODO: This function should delete all tables created during tests.
 func (s *DynamoDBSuite) TearDownSuite(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	if s.bk != nil && s.bk.svc != nil {
 		c.Assert(s.bk.Close(), check.IsNil)
 	}
 }
 
 func (s *DynamoDBSuite) TestCRUD(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	s.suite.CRUD(c)
 }
 
 func (s *DynamoDBSuite) TestRange(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	s.suite.Range(c)
 }
 
 func (s *DynamoDBSuite) TestDeleteRange(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	s.suite.DeleteRange(c)
 }
 
 func (s *DynamoDBSuite) TestCompareAndSwap(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	s.suite.CompareAndSwap(c)
 }
 
 func (s *DynamoDBSuite) TestExpiration(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	s.suite.Expiration(c)
 }
 
 func (s *DynamoDBSuite) TestKeepAlive(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	s.suite.KeepAlive(c)
 }
 
 func (s *DynamoDBSuite) TestEvents(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	s.suite.Events(c)
 }
 
 func (s *DynamoDBSuite) TestWatchersClose(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	s.suite.WatchersClose(c)
 }
 
 func (s *DynamoDBSuite) TestLocking(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	s.suite.Locking(c)
 }
 
 // TestContinuousBackups verifies that the continuous backup state is set upon
 // startup of DynamoDB.
 func (s *DynamoDBSuite) TestContinuousBackups(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	var tests = []struct {
 		enabled bool
 		desc    check.CommentInterface
@@ -141,6 +186,10 @@ func (s *DynamoDBSuite) TestContinuousBackups(c *check.C) {
 // TestContinuousBackups verifies that auto scaling is enabled and disabled
 // upon startup of DynamoDB.
 func (s *DynamoDBSuite) TestAutoScaling(c *check.C) {
+	if !hasLocalDynamoDB() {
+		c.Skip("No local DynamoDB found.")
+	}
+
 	var tests = []struct {
 		inEnabled          bool
 		inReadMinCapacity  int
@@ -199,4 +248,15 @@ func (s *DynamoDBSuite) TestAutoScaling(c *check.C) {
 		c.Assert(resp.writeMaxCapacity, check.Equals, tt.inWriteMaxCapacity)
 		c.Assert(resp.writeTargetValue, check.Equals, tt.inWriteTargetValue)
 	}
+}
+
+// hasLocalDynamoDB returns true if a local instance of DynamoDB is running.
+func hasLocalDynamoDB() bool {
+	// TODO(russjones): Add support for a local DynamoDB using Docker which can
+	// be used to run Teleport tests.
+	//
+	// See the following link for more details:
+	//
+	//   https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html
+	return false
 }
