@@ -823,11 +823,20 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 			return nil, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
 		}
 
-		if req.GetAccessExpiry().Before(a.GetClock().Now()) {
+		if err := services.ValidateAccessRequest(a, req, false); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		accessExpiry := req.GetAccessExpiry()
+		if accessExpiry.Before(a.GetClock().Now()) {
 			return nil, trace.BadParameter("access request %q has expired", accessRequestID)
 		}
 
 		roles = append(roles, req.GetRoles()...)
+		roles = utils.Deduplicate(roles)
+
+		// Let session expire with access request expiry.
+		expiresAt = accessExpiry
 	}
 
 	sess, err := a.NewWebSession(user, roles, traits)
