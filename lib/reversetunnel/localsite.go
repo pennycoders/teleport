@@ -284,11 +284,12 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 		if params.To.String() == "" {
 			return nil, false, trace.ConnectionProblem(err, "node is offline, please try again later")
 		}
+		tunnelErr := trace.Errorf("dialing through a tunnel: %v", err)
 		// If no tunnel connection was found, dial to the target host.
 		dialer := proxy.DialerFromEnvironment(params.To.String())
 		conn, err = dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
 		if err != nil {
-			return nil, false, trace.Wrap(err)
+			return nil, false, trace.NewAggregate(tunnelErr, trace.Errorf("dialing directly: %v", err))
 		}
 
 		// Return a direct dialed connection.
@@ -418,7 +419,7 @@ func (s *localSite) chanTransportConn(rconn *remoteConn) (net.Conn, error) {
 	s.log.Debugf("Connecting to %v through tunnel.", rconn.conn.RemoteAddr())
 
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
-		Address: LocalNode,
+		Address: LocalNode, // TODO(awly): this could also be a local kubernetes_service
 	}, false)
 	if err != nil {
 		if markInvalid {

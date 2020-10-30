@@ -35,14 +35,61 @@ func GetKubeClient(configPath string) (client *kubernetes.Clientset, config *res
 	return client, config, nil
 }
 
+type Kubeconfig struct {
+	CurrentContext string
+	Contexts       map[string]*rest.Config
+}
+
 // GetKubeConfig returns kubernetes configuration
 // from configPath file or, by default reads in-cluster configuration
-func GetKubeConfig(configPath string) (*rest.Config, error) {
-	// if path to kubeconfig was provided, init config from it
-	if configPath != "" {
-		return clientcmd.BuildConfigFromFlags("", configPath)
+func GetKubeConfig(configPath string, allConfigEntries bool, clusterName string) (*Kubeconfig, error) {
+	switch {
+	case configPath != "" && clusterName == "":
+		loader := &clientcmd.ClientConfigLoadingRules{ExplicitPath: configPath}
+		cfg, err := loader.Load()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		res := &Kubeconfig{
+			CurrentContext: cfg.CurrentContext,
+			Contexts:       make(map[string]*rest.Config, len(cfg.Contexts)),
+		}
+		if !allConfigEntries {
+			// Only current-context is requested.
+			clientCfg, err := clientcmd.NewNonInteractiveClientConfig(*cfg, cfg.CurrentContext, &clientcmd.ConfigOverrides{}, nil).ClientConfig()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			res.Contexts[cfg.CurrentContext] = clientCfg
+			return res, nil
+		}
+		// All contexts are requested.
+		for n := range cfg.Contexts {
+			clientCfg, err := clientcmd.NewNonInteractiveClientConfig(*cfg, n, &clientcmd.ConfigOverrides{}, nil).ClientConfig()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			res.Contexts[n] = clientCfg
+		}
+		return res, nil
+	case configPath == "" && clusterName != "":
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			if err == rest.ErrNotInCluster {
+				return nil, nil
+			}
+			return nil, trace.Wrap(err)
+		}
+		return &Kubeconfig{
+			CurrentContext: clusterName,
+			Contexts:       map[string]*rest.Config{clusterName: cfg},
+		}, nil
+	case configPath == "" && clusterName == "":
+		return nil, trace.BadParameter("at least one of configPath or clusterName must be specified")
+	case configPath != "" && clusterName != "":
+		return nil, trace.BadParameter("only one of configPath or clusterName can be specified")
 	}
-	return rest.InClusterConfig()
+	panic("unreachable")
 }
 
 // EncodeClusterName encodes cluster name for SNI matching

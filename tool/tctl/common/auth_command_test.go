@@ -129,7 +129,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			ac: AuthCommand{
 				output:       filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat: identityfile.FormatKubernetes,
-				kubeCluster:  remoteCluster.GetMetadata().Name,
+				leafCluster:  remoteCluster.GetMetadata().Name,
 				config: &service.Config{Proxy: service.ProxyConfig{
 					Kube: service.KubeProxyConfig{
 						Enabled: false,
@@ -143,7 +143,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			ac: AuthCommand{
 				output:       filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat: identityfile.FormatKubernetes,
-				kubeCluster:  "doesnotexist.example.com",
+				leafCluster:  "doesnotexist.example.com",
 				config: &service.Config{Proxy: service.ProxyConfig{
 					Kube: service.KubeProxyConfig{
 						Enabled: false,

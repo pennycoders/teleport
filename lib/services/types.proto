@@ -140,7 +140,6 @@ message ServerV2 {
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
     reserved 8;
-    reserved "KubernetesClusters";
 
     // Addr is server host:port address
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
@@ -159,6 +158,11 @@ message ServerSpecV2 {
     bool UseTunnel = 6 [ (gogoproto.jsontag) = "use_tunnel,omitempty" ];
     // TeleportVersion is the teleport version that the server is running on
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
+
+    // KubernetesClusters is a list of kubernetes clusters provided by this
+    // Proxy or KubeService server.
+    repeated KubernetesCluster KubernetesClusters = 10
+        [ (gogoproto.jsontag) = "kubernetes_clusters,omitempty" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -1076,4 +1080,17 @@ message SemaphoreSpecV3 {
     // Leases is a list of all currently acquired leases.
     repeated SemaphoreLeaseRef Leases = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "leases" ];
+}
+
+message KubernetesCluster {
+    // Name is the name of this kubernetes cluster.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+
+    // StaticLabels is map of static labels associated with this cluster.
+    // Used for RBAC.
+    map<string, string> StaticLabels = 2 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    // DynamicLabels is map of dynamic labels associated with this cluster.
+    // Used for RBAC.
+    map<string, CommandLabelV2> DynamicLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
 }

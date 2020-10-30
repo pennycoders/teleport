@@ -152,19 +152,21 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:      defaults.Namespace,
-			Keygen:         cfg.Keygen,
-			ClusterName:    conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-			Auth:           authorizer,
-			Client:         conn.Client,
-			DataDir:        cfg.DataDir,
-			AccessPoint:    accessPoint,
-			ServerID:       cfg.HostUUID,
-			KubeconfigPath: cfg.Kube.KubeconfigPath,
+			Namespace:       defaults.Namespace,
+			Keygen:          cfg.Keygen,
+			ClusterName:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+			Auth:            authorizer,
+			Client:          conn.Client,
+			DataDir:         cfg.DataDir,
+			AccessPoint:     accessPoint,
+			ServerID:        cfg.HostUUID,
+			KubeconfigPath:  cfg.Kube.KubeconfigPath,
+			KubeClusterName: cfg.Kube.KubeClusterName,
+			NewKubeService:  true,
+			Component:       teleport.ComponentKube,
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,
-		Component:     teleport.ComponentKube,
 		LimiterConfig: cfg.Kube.Limiter,
 	})
 	if err != nil {

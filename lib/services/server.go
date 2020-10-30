@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -67,6 +68,9 @@ type Server interface {
 	SetPublicAddr(string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
+	// GetKubeClusters returns the kubernetes clusters directly handled by this
+	// server.
+	GetKubernetesClusters() []*KubernetesCluster
 	// V1 returns V1 version for backwards compatibility
 	V1() *ServerV1
 	// MatchAgainst takes a map of labels and returns True if this server
@@ -271,6 +275,10 @@ func (s *ServerV2) GetAllLabels() map[string]string {
 	return lmap
 }
 
+// GetKubeClusters returns the kubernetes clusters directly handled by this
+// server.
+func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.KubernetesClusters }
+
 // MatchAgainst takes a map of labels and returns True if this server
 // has ALL of them
 //
@@ -305,6 +313,9 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	err := s.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if s.Kind == "" {
+		return trace.BadParameter("server Kind is empty")
 	}
 
 	for key := range s.Spec.CmdLabels {
@@ -362,6 +373,9 @@ func CompareServers(a, b Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
+	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
+		return Different
+	}
 	return Equal
 }
 
@@ -415,6 +429,39 @@ const ServerSpecV2Schema = `{
           }
         }
       }
+    },
+    "kubernetes_clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+         "required": ["name"],
+         "properties": {
+           "name": {"type": "string"},
+           "static_labels": {
+             "type": "object",
+             "additionalProperties": false,
+             "patternProperties": {
+               "^.*$":  { "type": "string" }
+             }
+           },
+           "dynamic_labels": {
+             "type": "object",
+             "additionalProperties": false,
+             "patternProperties": {
+               "^.*$": {
+                 "type": "object",
+                 "additionalProperties": false,
+                 "required": ["command"],
+                 "properties": {
+                   "command": {"type": "array", "items": {"type": "string"}},
+                   "period": {"type": "string"},
+                   "result": {"type": "string"}
+                 }
+               }
+             }
+           }
+         }
+       }
     },
     "rotation": %v
   }

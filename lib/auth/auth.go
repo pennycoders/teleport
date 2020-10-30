@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -556,16 +557,21 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	if req.kubernetesCluster != "" {
-		if err := CheckKubeCluster(req.kubernetesCluster, a.Presence); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		kc, err := defaultKubeCluster(a.Presence, clusterName)
-		if err != nil {
-			log.Warningf("Failed setting default kubernetes cluster for user login (user did not provide a cluster): %v; leaving KubernetesCluster extension in the TLS certificate empty", err)
+	if req.routeToCluster == clusterName {
+		// Only validate/default kubernetes cluster name for the current
+		// teleport cluster. If this cert is targeting a trusted teleport
+		// cluster, leave all the kubernetes cluster validation up to them.
+		if req.kubernetesCluster != "" {
+			if err := CheckKubeCluster(a.closeCtx, req.kubernetesCluster, a.Presence); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		} else {
-			req.kubernetesCluster = kc
+			kc, err := defaultKubeCluster(a.closeCtx, a.Presence, clusterName)
+			if err != nil {
+				log.Warningf("Failed setting default kubernetes cluster for user login (user did not provide a cluster): %v; leaving KubernetesCluster extension in the TLS certificate empty", err)
+			} else {
+				req.kubernetesCluster = kc
+			}
 		}
 	}
 	// generate TLS certificate
@@ -603,10 +609,19 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 
 // CheckKubeCluster validates kubernetes cluster name against known kubernetes
 // clusters.
-func CheckKubeCluster(kc string, p services.Presence) error {
-	// TODO(awly): implement this after `kubernetes_service` registration is
-	// ready.
-	return trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube clusters'", kc)
+func CheckKubeCluster(ctx context.Context, name string, p services.Presence) error {
+	kss, err := p.GetKubeServices(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	for _, ks := range kss {
+		for _, kc := range ks.GetKubernetesClusters() {
+			if name == kc.Name {
+				return nil
+			}
+		}
+	}
+	return trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube clusters'", name)
 }
 
 // defaultKubeCluster returns the default kubernetes cluster for user logins.
@@ -614,10 +629,29 @@ func CheckKubeCluster(kc string, p services.Presence) error {
 // This is the cluster with a name matching the Teleport cluster name (for
 // backwards-compatibility with pre-5.0 behavior) or the first name
 // alphabetically. If no clusters are registered, a NotFound error is returned.
-func defaultKubeCluster(pg services.ProxyGetter, teleportClusterName string) (string, error) {
-	// TODO(awly): implement this after `kubernetes_service` registration is
-	// ready.
-	return "", trace.NotFound("no kubernetes clusters registered in this Teleport cluster")
+func defaultKubeCluster(ctx context.Context, p services.Presence, teleportClusterName string) (string, error) {
+	kss, err := p.GetKubeServices(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	kubeClusters := make(map[string]struct{})
+	for _, ks := range kss {
+		for _, kc := range ks.GetKubernetesClusters() {
+			kubeClusters[kc.Name] = struct{}{}
+		}
+	}
+	if len(kubeClusters) == 0 {
+		return "", trace.NotFound("no kubernetes clusters registered")
+	}
+	if _, ok := kubeClusters[teleportClusterName]; ok {
+		return teleportClusterName, nil
+	}
+	kubeClusterNames := make([]string, 0, len(kubeClusters))
+	for n := range kubeClusters {
+		kubeClusterNames = append(kubeClusterNames, n)
+	}
+	sort.Strings(kubeClusterNames)
+	return kubeClusterNames[0], nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -1105,7 +1139,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	}
 	// Unlike additional principals, DNS Names is x509 specific
 	// and is limited to auth servers and proxies
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) {
+	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) || req.Roles.Include(teleport.RoleKube) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)

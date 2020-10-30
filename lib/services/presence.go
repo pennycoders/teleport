@@ -167,10 +167,16 @@ type Presence interface {
 	DeleteAllRemoteClusters() error
 
 	// UpsertKubeService registers kubernetes service presence.
-	UpsertKubeService(server Server) error
+	UpsertKubeService(context.Context, Server) error
 
 	// GetKubeServices returns a list of registered kubernetes services.
-	GetKubeServices() ([]Server, error)
+	GetKubeServices(context.Context) ([]Server, error)
+
+	// DeleteKubeService deletes a named kubernetes service.
+	DeleteKubeService(ctx context.Context, name string) error
+
+	// DeleteAllKubeServices deletes all registered kubernetes services.
+	DeleteAllKubeServices(context.Context) error
 }
 
 // NewNamespace returns new namespace

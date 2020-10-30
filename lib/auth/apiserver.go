@@ -142,6 +142,8 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.DELETE("/:version/tunnelconnections", srv.withAuth(srv.deleteAllTunnelConnections))
 	srv.POST("/:version/kube_services", srv.withAuth(srv.upsertKubeService))
 	srv.GET("/:version/kube_services", srv.withAuth(srv.getKubeServices))
+	srv.DELETE("/:version/kube_services/:name", srv.withAuth(srv.deleteKubeService))
+	srv.DELETE("/:version/kube_services", srv.withAuth(srv.deleteAllKubeServices))
 
 	// Server Credentials
 	srv.POST("/:version/server/credentials", srv.withAuth(srv.generateServerKeys))
@@ -337,6 +339,10 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 		kind = services.KindAuthServer
 	case teleport.RoleProxy:
 		kind = services.KindProxy
+	case teleport.RoleKube:
+		kind = services.KindKubeService
+	default:
+		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}
 	server, err := services.GetServerMarshaler().UnmarshalServer(req.Server, kind)
 	if err != nil {
@@ -369,7 +375,7 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 			return nil, trace.Wrap(err)
 		}
 	case teleport.RoleKube:
-		if err := auth.UpsertKubeService(server); err != nil {
+		if err := auth.UpsertKubeService(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -2494,11 +2500,29 @@ func (s *APIServer) upsertKubeService(auth ClientI, w http.ResponseWriter, r *ht
 }
 
 func (s *APIServer) getKubeServices(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	servers, err := auth.GetKubeServices()
+	servers, err := auth.GetKubeServices(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return marshalServers(servers, version)
+}
+
+func (s *APIServer) deleteKubeService(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("missing kubernetes service name")
+	}
+	if err := auth.DeleteKubeService(r.Context(), name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+func (s *APIServer) deleteAllKubeServices(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	if err := auth.DeleteAllKubeServices(r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
 }
 
 func message(msg string) map[string]interface{} {

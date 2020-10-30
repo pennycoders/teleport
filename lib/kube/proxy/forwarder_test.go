@@ -184,7 +184,8 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			haveKubeCreds:  false,
 			tunnel:         tun,
 
-			wantErr: true,
+			wantKubeUsers:  []string{"user-a"},
+			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
 		},
 		{
 			desc:           "remote user and local cluster",
@@ -313,7 +314,7 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 		req = req.WithContext(ctx)
 
 		if tt.haveKubeCreds {
-			f.creds = &kubeCreds{targetAddr: "k8s.example.com"}
+			f.creds = map[string]*kubeCreds{tt.routeToCluster: {targetAddr: "k8s.example.com"}}
 		} else {
 			f.creds = nil
 		}
@@ -463,8 +464,9 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	f := &Forwarder{
 		Entry: logrus.NewEntry(logrus.New()),
 		ForwarderConfig: ForwarderConfig{
-			Keygen: testauthority.New(),
-			Client: csrClient,
+			Keygen:      testauthority.New(),
+			Client:      csrClient,
+			AccessPoint: mockAccessPoint{},
 		},
 		clusterSessions: clusterSessions,
 	}
@@ -494,10 +496,12 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
 	c.Assert(f.clusterSessions.Len(), check.Equals, 0)
 
-	f.creds = &kubeCreds{
-		targetAddr:      "k8s.example.com",
-		tlsConfig:       &tls.Config{},
-		transportConfig: &transport.Config{},
+	f.creds = map[string]*kubeCreds{
+		"local": {
+			targetAddr:      "k8s.example.com",
+			tlsConfig:       &tls.Config{},
+			transportConfig: &transport.Config{},
+		},
 	}
 
 	c.Log("newClusterSession for a local cluster")
@@ -516,16 +520,19 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 		teleportCluster: teleportClusterClient{
 			name: "local",
 		},
-		sessionTTL: time.Minute,
+		sessionTTL:  time.Minute,
+		kubeCluster: "local",
 	}
 	sess, err := f.newClusterSession(authCtx)
 	c.Assert(err, check.IsNil)
+	sess, err = f.setClusterSession(sess)
+	c.Assert(err, check.IsNil)
 	c.Assert(f.clusterSessions.Len(), check.Equals, 1)
-	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, f.creds.targetAddr)
+	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, f.creds["local"].targetAddr)
 	c.Assert(sess.forwarder, check.NotNil)
 	// Make sure newClusterSession used f.creds instead of requesting a
 	// Teleport client cert.
-	c.Assert(sess.tlsConfig, check.Equals, f.creds.tlsConfig)
+	c.Assert(sess.tlsConfig, check.Equals, f.creds["local"].tlsConfig)
 	c.Assert(csrClient.lastCert, check.IsNil)
 
 	c.Log("newClusterSession for a remote cluster")
@@ -549,12 +556,14 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	}
 	sess, err = f.newClusterSession(authCtx)
 	c.Assert(err, check.IsNil)
+	sess, err = f.setClusterSession(sess)
+	c.Assert(err, check.IsNil)
 	c.Assert(f.clusterSessions.Len(), check.Equals, 2)
 	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, reversetunnel.LocalKubernetes)
 	c.Assert(sess.forwarder, check.NotNil)
 	// Make sure newClusterSession obtained a new client cert instead of using
 	// f.creds.
-	c.Assert(sess.tlsConfig, check.Not(check.Equals), f.creds.tlsConfig)
+	c.Assert(sess.tlsConfig, check.Not(check.Equals), f.creds["local"].tlsConfig)
 	c.Assert(sess.tlsConfig.Certificates[0].Certificate[0], check.DeepEquals, csrClient.lastCert.Raw)
 	c.Assert(sess.tlsConfig.RootCAs.Subjects(), check.DeepEquals, [][]byte{csrClient.ca.Cert.RawSubject})
 }
@@ -620,10 +629,15 @@ type mockAccessPoint struct {
 	auth.AccessPoint
 
 	clusterConfig services.ClusterConfig
+	kubeServices  []services.Server
 }
 
 func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.ClusterConfig, error) {
 	return ap.clusterConfig, nil
+}
+
+func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+	return ap.kubeServices, nil
 }
 
 type mockRevTunnel struct {

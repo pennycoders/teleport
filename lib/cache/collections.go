@@ -115,6 +115,11 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[string]collec
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
 			collections[watch.Kind] = &accessRequest{watch: watch, Cache: c}
+		case services.KindKubeService:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[watch.Kind] = &kubeService{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1049,5 +1054,67 @@ func (c *role) processEvent(ctx context.Context, event services.Event) error {
 }
 
 func (c *role) watchKind() services.WatchKind {
+	return c.watch
+}
+
+type kubeService struct {
+	*Cache
+	watch services.WatchKind
+}
+
+func (c *kubeService) erase() error {
+	if err := c.presenceCache.DeleteAllKubeServices(context.TODO()); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *kubeService) fetch(ctx context.Context) error {
+	resources, err := c.Presence.GetKubeServices(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := c.erase(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, resource := range resources {
+		c.setTTL(resource)
+		if err := c.presenceCache.UpsertKubeService(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *kubeService) processEvent(ctx context.Context, event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		err := c.presenceCache.DeleteKubeService(ctx, event.Resource.GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(services.Server)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		if err := c.presenceCache.UpsertKubeService(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *kubeService) watchKind() services.WatchKind {
 	return c.watch
 }

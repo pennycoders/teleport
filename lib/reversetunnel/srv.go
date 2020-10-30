@@ -597,23 +597,26 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// nodes it's a node dialing back.
 	val, ok := sconn.Permissions.Extensions[extCertRole]
 	if !ok {
-		log.Errorf("Failed to accept connection, unknown role: %v.", val)
+		log.Errorf("Failed to accept connection, missing %q extension", extCertRole)
 		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
+		return
 	}
-	switch {
-	// Node is dialing back.
-	case val == string(teleport.RoleNode):
-		s.handleNewNode(conn, sconn, nch)
-	// Proxy is dialing back.
-	case val == string(teleport.RoleProxy):
+	role := teleport.Role(val)
+	switch role {
+	case teleport.RoleNode, teleport.RoleKube:
+		s.handleNewService(role, conn, sconn, nch)
+	case teleport.RoleProxy:
 		s.handleNewCluster(conn, sconn, nch)
+	default:
+		log.Errorf("Failed to accept connection, unknown role: %q.", val)
+		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
 	}
 }
 
-func (s *server) handleNewNode(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	cluster, rconn, err := s.upsertNode(conn, sconn)
+func (s *server) handleNewService(role teleport.Role, conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
+	cluster, rconn, err := s.upsertServiceConn(conn, sconn)
 	if err != nil {
-		log.Errorf("Failed to upsert node: %v.", err)
+		log.Errorf("Failed to upsert %s: %v.", role, err)
 		sconn.Close()
 		return
 	}
@@ -775,7 +778,7 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 	return nil
 }
 
-func (s *server) upsertNode(conn net.Conn, sconn *ssh.ServerConn) (*localSite, *remoteConn, error) {
+func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn) (*localSite, *remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 

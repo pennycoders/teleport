@@ -49,6 +49,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAccessRequest},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -68,6 +69,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindAuthServer},
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -99,6 +101,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -681,6 +684,6 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 }
 
 // GetKubeServices is a part of auth.AccessPoint implementation
-func (c *Cache) GetKubeServices() ([]services.Server, error) {
-	return c.presenceCache.GetKubeServices()
+func (c *Cache) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+	return c.presenceCache.GetKubeServices(ctx)
 }
