@@ -22,75 +22,8 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
-	//"github.com/gravitational/trace"
-
 	"github.com/stretchr/testify/require"
 )
-
-/*
-type mockUserAndRoleGetter struct {
-	users map[string]*User
-	roles map[string]*Role
-}
-
-func newMockUserAndRoleGetter() *mockUserAndRoleGetter {
-	return &mockUserAndRoleGetter{
-		users: make(map[string]*User),
-		roles: make(map[string]*Role),
-	}
-}
-
-func (g *mockUserAndRoleGetter) user(name string) *User {
-	user, err := NewUser(name)
-	if err != nil {
-		panic(err)
-	}
-	uref := &user
-	g.users[name] = uref
-	return uref
-}
-
-func (g *mockUserAndRoleGetter) role(name string, spec RoleSpecV3) *Role {
-	role, err := NewRole(name, spec)
-	if err != nil {
-		panic(err)
-	}
-	rref := &role
-	g.roles[name] = rref
-	return rref
-}
-
-func (g *mockUserAndRoleGetter) GetUser(name string, withSecrets bool) (User, error) {
-	if withSecrets {
-		panic("mockUserAndRoleGetter does not support secrets")
-	}
-	user, ok := g.users[name]
-	if !ok {
-		return nil, trace.NotFound("user not found: %s", name)
-	}
-	return *user, nil
-}
-
-func (g *mockUserAndRoleGetter) GetRole(name string) (Role, error) {
-	role, ok := g.roles[name]
-	if !ok {
-		return nil, trace.NotFound("role not found: %s", name)
-	}
-	return *role, nil
-}
-
-func (g *mockUserAndRoleGetter) GetRoles() ([]Role, error) {
-	roles := make([]Role, 0, len(g.roles))
-	for _, role := range g.roles {
-		roles = append(roles, *role)
-	}
-	return roles, nil
-}
-
-func TestRequestRoleMatching(t *testing.T) {
-	g := newMockUserAndRoleGetter()
-	g.user("alice").SetRoles([]string{"employee"})
-}*/
 
 // TestAccessRequestMarshaling verifies that marshaling/unmarshaling access requests
 // works as expected (failures likely indicate a problem with json schema).

@@ -536,9 +536,9 @@ func onLogin(cf *CLIConf) {
 		}
 		fmt.Printf("\nThe certificate has been written to %s\n", strings.Join(filesWritten, ","))
 		return
-	} else {
-		tc.ActivateKey(cf.Context, key)
 	}
+
+	tc.ActivateKey(cf.Context, key)
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
@@ -574,7 +574,6 @@ func onLogin(cf *CLIConf) {
 				}
 			case services.RequestStrategyAlways:
 				always = true
-				break
 			}
 		}
 		if reason && cf.RequestReason == "" {
@@ -841,7 +840,7 @@ func executeAccessRequest(cf *CLIConf) error {
 	if reason := res.GetResolveReason(); reason != "" {
 		msg = fmt.Sprintf("\nApproval received, reason=%q\nGetting updated certificates...\n\n", reason)
 	}
-	fmt.Fprintf(os.Stderr, msg)
+	fmt.Fprint(os.Stderr, msg)
 
 	if err := reissueWithRequests(cf, tc, req.GetName()); err != nil {
 		return trace.Wrap(err)
