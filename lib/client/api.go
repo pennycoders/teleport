@@ -1663,12 +1663,18 @@ func (tc *TeleportClient) LogoutAll() error {
 // If 'activateKey' is true, saves the received session cert into the local
 // keystore (and into the ssh-agent) for future use.
 //
-func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, error) {
+func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (key *Key, err error) {
+	defer func() {
+		// Wrap error with user friendly message about tsh profile context
+		err = trace.WrapWithMessage(err, "for user %v on %v", tc.Username, tc.WebProxyAddr)
+	}()
+
 	// preserve original web proxy host that could have
 	webProxyHost, _ := tc.WebProxyHostPort()
 
 	// Ping the endpoint to see if it's up and find the type of authentication
 	// supported.
+
 	pr, err := tc.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1676,7 +1682,7 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 
 	// generate a new keypair. the public key will be signed via proxy if client's
 	// password+OTP are valid
-	key, err := NewKey()
+	key, err = NewKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
